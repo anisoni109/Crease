@@ -10,6 +10,16 @@ Start with **Solo vs AI or Multiplayer**, then choose **Board Cricket or Cricket
 
 Choose 1, 2, 5, 10 or 20 overs and squads of 3, 5, 7 or 11. Budgets and prices adjust to squad size and lobby capacity. The host can select a custom purse (₹5–100 Cr presets, or enter any affordable amount up to ₹500 Cr) in setup or the lobby; the setup minimum covers a budget squad. Human bids are limited only by actual remaining cash; only the CPU plans reserves for later slots. Gray players start at ₹0.3 Cr before market scaling. The automatic purse is reduced to roughly ₹2.2 Cr per slot before game-size scaling. Player base prices stay fixed when changing only the purse. Auction and draft matches are head-to-head. Monopoly supports 2–4 captains, including AI seats. Solo games save on the current browser; online parties save on the server. Party codes expire after 24 hours of inactivity.
 
+## What's new in this version
+
+- **Screen-locked game views.** Auction, board, toss and match screens now fit inside the browser window (no page scrolling). On phones the play area scrolls inside itself and the main action buttons stay pinned to the bottom.
+- **New stadium.** Floodlit ground with crowd, boundary boards, proper cricketers (batters with pads and helmets, keeper, umpire) and a full replay for every ball: bowler run-up, delivery, shot, fielder chase, running between wickets, stumps flying, catches, run-outs, umpire signals, boundary rope flash and fireworks for sixes.
+- **Auction sets and tags.** Players come up in order: Gold **MARQUEE** set, then Red **ELITE**, Blue **CORE** and Gray **ROOKIE**. Tags are shown everywhere players appear.
+- **UNSOLD popup**, an **Up next** card, and an **Auction tracker** table at the bottom with every lot's status (on the block / sold / unsold / auto-fill), buyer and price.
+- **Play online from a Claude link.** When the game is opened as a Claude artifact, parties are stored in the artifact's shared database instead of the party server. Your friend needs edit access to the artifact.
+
+Note: multiplayer from GitHub Pages still uses the hosted party server configured in `lib/paths.ts`. That server runs the game rules it was deployed with, so Pages parties keep its older auction order until the server is redeployed from this source. Solo games on Pages use the new rules.
+
 ## Play online
 
 Full source archive: https://crease-cricket-club.relaxedtang1.chatgpt.site/downloads/crease-source.tar.gz

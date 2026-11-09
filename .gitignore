@@ -1,0 +1,79 @@
+# Dependencies
+/node_modules/
+/.pnp
+.pnp.*
+# Keep authored Yarn tooling if the project adopts Yarn.
+/.yarn/*
+!/.yarn/patches/
+!/.yarn/plugins/
+!/.yarn/releases/
+!/.yarn/versions/
+
+# Generated builds and framework state
+/dist/
+/.next/
+/.vinext/
+/out/
+next-env.d.ts
+*.tsbuildinfo
+
+# Test output
+/coverage/
+
+# Package-manager logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Local environment and keys
+.env*
+.dev.vars*
+*.pem
+
+# Checkout-local tool state
+/.wrangler/
+/.sites-runtime/
+
+# Workspace scaffolding and publication archives
+/.agents/
+/.codex/
+/outputs/
+/work/
+
+# OS metadata
+.DS_Store
+
+/research/
+/ipl-source.html
+/github-pages/
+
+/public/downloads/
+/scripts/revise-flow.mjs
+/scripts/update-rules-tests.mjs
+/scripts/update-readme.mjs
+
+/scripts/finalize-lobby.mjs
+/scripts/refine-home.mjs
+/scripts/refine-gameplay.mjs
+/scripts/refine-tests.mjs
+/scripts/finalize-polish.mjs
+/scripts/final-round.mjs
+/scripts/lobby-flow-complete.mjs
+/scripts/update-smoke.mjs
+/scripts/read-only-deployment.mjs
+/scripts/reset-field.mjs
+/scripts/final-request-ui.mjs
+/scripts/last-request-tests.mjs
+/scripts/add-toss-broadcast.mjs
+/scripts/toss-tests-docs.mjs
+/scripts/urgent-auction-ui.mjs
+/scripts/remove-human-reserve.mjs
+scripts/finish-scorebook.mjs
+scripts/fix-profile-init.mjs
+scripts/extend-smoke.mjs
+scripts/move-origin-check.mjs
+scripts/reset-rematch-board.mjs
+scripts/final-documentation.mjs
+scripts/statistics-spacing.mjs
+scripts/pin-source.mjs

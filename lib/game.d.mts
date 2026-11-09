@@ -1,0 +1,12 @@
+export const PLAYERS:any[];export const TEAMS:any[];export const TIERS:Record<string,any>;
+export const AVATARS:string[];
+export function bowlerLimit(settings:any):number;export function scoreRuns(bat:number,bowl:number):number;export function bowlingOptions(g:any,seat?:number):number[];export function squadAdvice(g:any,seat:number):any;
+export function minimumBudget(settings:any):number;export function recommendedBudget(settings:any):number;export function arrangedSquad(g:any,seat:number):any[];
+export function auctionDecision(g:any,seat:number):any;
+export function player(id:number):any;export function money(n:number):string;
+export function normalizeSettings(input?:any):any;export function price(p:any,s:any):number;export function budget(s:any):number;
+export function makeSeat(name:string,team:number,token:string,ai?:boolean,avatar?:number):any;
+export function createGame(settings:any,seat:any):any;export function start(g:any,rng?:()=>number):any;
+export function act(state:any,actor:number,action:any,rng?:()=>number):any;
+export function aiAction(g:any):any;export function bidAmount(g:any):number;export function publicGame(g:any,actor:number):any;
+export const TIER_ORDER:string[];export function auctionPool(rng?:()=>number):number[];export function upcomingLots(g:any,n?:number):number[];

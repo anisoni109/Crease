@@ -1,0 +1,1 @@
+export function captainFigures(game:any,seat:number):any;export function makeRecord(game:any,id:string,completedAt?:number):any;export function recordListItem(record:any):any;export function aggregateRecords(records:any[]):any[];export function scorecard(game:any,seat:number):any;

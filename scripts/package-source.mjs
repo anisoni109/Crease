@@ -1,0 +1,14 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {execFileSync} from 'node:child_process';
+import {createHash} from 'node:crypto';
+const root=process.cwd();
+const files=execFileSync('git',['ls-files','--cached','--others','--exclude-standard','-z'],{encoding:'utf8'}).split('\0').filter(Boolean).filter(p=>p!=='.github/workflows/pages.yml');
+if(files.some(p=>p.startsWith('/')||p.split('/').includes('..')||p.includes('\n')))throw new Error('Unsafe archive path.');
+fs.mkdirSync('outputs',{recursive:true});fs.mkdirSync('public/downloads',{recursive:true});
+const list=path.join(root,'outputs','source-files.txt');fs.writeFileSync(list,files.join('\n')+'\n');
+const archive=path.join(root,'public','downloads','crease-source.tar.gz');
+execFileSync('tar',['-czf',archive,'--files-from',list],{cwd:root});
+const hash=createHash('sha256').update(fs.readFileSync(archive)).digest('hex');
+fs.writeFileSync('outputs/source-archive.json',JSON.stringify({archive,sha256:hash,files:files.length}));
+console.log(JSON.stringify({archive,sha256:hash,files:files.length}));
