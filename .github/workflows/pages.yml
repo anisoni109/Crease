@@ -21,7 +21,7 @@ jobs:
         run: |
           if [ ! -f package.json ]; then
             curl --fail --location --retry 3 'https://crease-cricket-club.relaxedtang1.chatgpt.site/downloads/crease-source.tar.gz' --output /tmp/crease-source.tar.gz
-            echo '27ecc30c6e7a0fa38fc66b14dfbd839a749275b31d5924c5c1a766d85157c7c5  /tmp/crease-source.tar.gz' | sha256sum --check -
+            echo 'b77169edc951fd8c0f59fa00057e8332c5bd33b3b80f34d0f7152b8833282c4d  /tmp/crease-source.tar.gz' | sha256sum --check -
             tar -xzf /tmp/crease-source.tar.gz -C .
             echo 'imported=true' >> "$GITHUB_OUTPUT"
           fi
