@@ -1,4 +1,5 @@
 name: Publish CREASE to GitHub Pages
+run-name: Publish CREASE release 5
 on:
   push:
     branches: [main]
