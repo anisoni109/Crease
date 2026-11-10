@@ -1365,6 +1365,17 @@ export function ArenaScore({ game }: { game: any }) {
           )}
         </span>
       </div>
+      <div className="ar-score-need">
+        {m.innings === 0 ? (
+          <>
+            Setting the target · CRR {rr}
+          </>
+        ) : (
+          <>
+            Need <b>{needed}</b> off <b>{ballsLeft}</b> · target {m.scores[m.bowling] + 1} · RRR {rrr}
+          </>
+        )}
+      </div>
       <div className="ar-score-figs">
         <div>
           <span className="tag bat">BAT</span>
