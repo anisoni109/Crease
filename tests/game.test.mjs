@@ -55,7 +55,9 @@ test('rematches preserve squads, reset cricket and increment the saved round',()
 test('auction order is random, logs every lot and alternates the opening bid', async () => {
   const a = start(setup('auction', { squadSize: 3 }), rng(4)), b = start(setup('auction', { squadSize: 3 }), rng(5));
   assert.notDeepEqual(a.auction.pool, b.auction.pool);
-  assert.ok(new Set(a.auction.pool.slice(0, 40).map((id) => player(id).tier)).size >= 3, 'tiers are mixed');
+  const order = ['gold', 'red', 'blue', 'gray'], rank = a.auction.pool.map((id) => order.indexOf(player(id).tier));
+  assert.deepEqual(rank, [...rank].sort((x, y) => x - y), 'MARQUEE, then ELITE, CORE, ROOKIE');
+  assert.equal(player(a.auction.pool[0]).tier, 'gold');
   let g = a;
   const first = g.auction.id, opener = g.active;
   g = act(g, g.active, { type: 'pass' });
