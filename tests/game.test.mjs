@@ -168,3 +168,46 @@ test('bowling speeds fit the action and shot names match the side of the ground'
   for (let n = 0; n < 40 && g.phase !== 'results'; n++) { const a = aiAction(g); g = act(g, a.actor, a.action, r); }
   assert.ok(g.match.history.every((b) => b.kph > 70 && b.style));
 });
+
+test('monopoly: upgrade your own star for more money, rivals pay the upgraded points, every turn leaves a result', async () => {
+  const { monoPoints, monoUpgradeCost, MONO_MAX_LEVEL } = await import('../lib/game.mjs');
+  let g = start(setup('monopoly'), rng());
+  const star = PLAYERS[0];
+  g.board[2] = { kind: 'player', id: star.id, owner: null };
+  g = act(g, 0, { type: 'roll' }, () => 0);
+  assert.equal(g.pending.kind, 'buy');
+  assert.equal(g.turn.done, false);
+  g = act(g, 0, { type: 'buy' });
+  assert.equal(g.turn.done, true);
+  assert.match(g.turn.headline, /signs/);
+  assert.ok(g.turn.runs[0] > 0 && g.turn.bank[0] < 0);
+  const base = monoPoints(g, g.board[2]);
+  assert.equal(base, Math.ceil(price(star, g.settings) * 3));
+  // lands on his own player again: scores, then may upgrade
+  g.seats[0].position = 0; g.active = 0;
+  g = act(g, 0, { type: 'roll' }, () => 0);
+  assert.equal(g.pending.kind, 'upgrade');
+  assert.equal(g.turn.runs[0], base);
+  assert.throws(() => act(g, 0, { type: 'buy' }), /Upgrade/);
+  const bank = g.seats[0].bank, cost = monoUpgradeCost(g, g.board[2]);
+  g = act(g, 0, { type: 'upgrade' });
+  assert.equal(g.board[2].lvl, 1);
+  assert.equal(g.seats[0].bank, Math.round((bank - cost) * 10) / 10);
+  assert.ok(monoPoints(g, g.board[2]) > base);
+  assert.ok(monoUpgradeCost(g, g.board[2]) > cost);
+  assert.equal(g.turn.done, true);
+  // a rival landing on him now pays the upgraded points
+  g.seats[1].score = 500; const before = g.seats[0].score;
+  g = act(g, 1, { type: 'roll' }, () => 0);
+  assert.equal(g.seats[0].score - before, monoPoints(g, g.board[2]));
+  assert.equal(g.turn.runs[1], -monoPoints(g, g.board[2]));
+  assert.equal(g.turn.tone, 'bad');
+  // declining keeps the level, and levels stop at the cap
+  g.seats[0].position = 0; g.active = 0; g.pending = null; g.seats[0].bank = 500;
+  g = act(g, 0, { type: 'roll' }, () => 0);
+  g = act(g, 0, { type: 'pass' });
+  assert.equal(g.board[2].lvl, 1);
+  g.board[2].lvl = MONO_MAX_LEVEL; g.seats[0].position = 0; g.active = 0; g.pending = null;
+  g = act(g, 0, { type: 'roll' }, () => 0);
+  assert.equal(g.pending, null);
+});

@@ -4492,3 +4492,307 @@
   font-size: 0.86em;
   white-space: nowrap;
 }
+
+/* ==========================================================================
+   BOARD: rosters in the centre, upgrade offer and the turn result card
+   ========================================================================== */
+.ar-tray {
+  max-height: 22cqmin;
+}
+.ar-center-rosters {
+  width: 100%;
+  flex: 1.25;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr));
+  gap: 1.2cqmin;
+}
+.ar-roster {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #0f180dd9;
+  border: 1px solid color-mix(in srgb, var(--team) 38%, transparent);
+}
+.ar-roster.on {
+  border-color: var(--team);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--team) 40%, transparent);
+}
+.ar-roster header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 6px 3px 3px;
+  background: color-mix(in srgb, var(--team) 24%, #0f180d);
+  font-size: clamp(8.5px, 1.55cqmin, 12px);
+  min-width: 0;
+}
+.ar-roster header i {
+  flex: none;
+  font-style: normal;
+  width: clamp(14px, 2.6cqmin, 20px);
+  height: clamp(14px, 2.6cqmin, 20px);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--team);
+  font-size: clamp(8px, 1.4cqmin, 12px);
+}
+.ar-roster header span {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+.ar-roster header b {
+  font-family: var(--display);
+  font-size: 1.25em;
+  color: #f4ffd9;
+}
+.ar-roster ul {
+  list-style: none;
+  margin: 0;
+  padding: 3px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  scrollbar-width: thin;
+}
+.ar-roster li {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 4px 1px 1px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--tier) 14%, #172114);
+  border-left: 2px solid var(--tier);
+  font-size: clamp(8px, 1.45cqmin, 11px);
+  min-width: 0;
+  animation: arLotIn 0.35s ease-out;
+}
+.ar-roster li img {
+  flex: none;
+  width: clamp(14px, 2.7cqmin, 21px);
+  height: clamp(14px, 2.7cqmin, 21px);
+  border-radius: 5px;
+  object-fit: cover;
+  object-position: top;
+}
+.ar-roster li span {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ar-roster li b {
+  font-family: var(--display);
+  color: #c9f66b;
+}
+.ar-roster li em {
+  font-style: normal;
+  font-weight: 800;
+  font-size: 0.86em;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: #c9f66b;
+  color: #142010;
+}
+.ar-roster li.none {
+  border-left-color: transparent;
+  background: none;
+  color: #8fa383;
+  justify-content: center;
+  font-style: italic;
+}
+.ar-tile.is-owned b {
+  letter-spacing: 0;
+}
+.ar-center-offer.is-upgrade {
+  border-color: #c9f66b;
+  box-shadow: 0 0 28px #c9f66b44;
+}
+.ar-up-tag {
+  display: inline-block;
+  font-size: clamp(7.5px, 1.35cqmin, 10px);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: #c9f66b;
+  color: #142010;
+}
+
+/* turn result card */
+.ar-turn-wrap {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 6%;
+  background: #05090466;
+  backdrop-filter: blur(1.5px);
+  animation: arFadeIn 0.2s ease-out;
+  cursor: pointer;
+}
+@keyframes arFadeIn {
+  from { opacity: 0; }
+}
+.ar-turn {
+  width: min(100%, 78cqmin);
+  display: flex;
+  flex-direction: column;
+  gap: 1.8cqmin;
+  padding: 2.4cqmin 2.8cqmin 2.6cqmin;
+  border-radius: 18px;
+  background: linear-gradient(160deg, #1c2a17, #101a0e);
+  border: 2px solid var(--team);
+  box-shadow:
+    0 0 0 5px color-mix(in srgb, var(--team) 22%, transparent),
+    0 24px 60px #000b;
+  animation: arTurnIn 0.42s cubic-bezier(0.2, 1.5, 0.4, 1);
+}
+.ar-turn.tone-good {
+  background: linear-gradient(160deg, #26401c, #101a0e);
+}
+.ar-turn.tone-bad {
+  background: linear-gradient(160deg, #47201b, #170d0b);
+}
+@keyframes arTurnIn {
+  from { transform: translateY(18px) scale(0.86); opacity: 0; }
+}
+.ar-turn-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: clamp(10px, 2cqmin, 15px);
+}
+.ar-turn-head i {
+  font-style: normal;
+  width: clamp(20px, 4cqmin, 30px);
+  height: clamp(20px, 4cqmin, 30px);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--team);
+}
+.ar-turn-head span {
+  font-weight: 700;
+}
+.ar-turn-head em {
+  margin-left: auto;
+  font-style: normal;
+  color: #b9c8ad;
+  font-size: 0.92em;
+}
+.ar-turn-body {
+  display: flex;
+  align-items: center;
+  gap: 2cqmin;
+}
+.ar-turn-body img,
+.ar-turn-ev {
+  flex: none;
+  width: clamp(44px, 11cqmin, 80px);
+  aspect-ratio: 1;
+  border-radius: 12px;
+  object-fit: cover;
+  object-position: top;
+  border: 2px solid var(--tier, #4b6339);
+  background: color-mix(in srgb, var(--tier, #4b6339) 24%, #1a2417);
+}
+.ar-turn-ev {
+  display: grid;
+  place-items: center;
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: clamp(20px, 5cqmin, 34px);
+}
+.ar-turn-ev.ev-out {
+  background: #4d2019;
+  color: #ff8a7c;
+  border-color: #b8463a;
+}
+.ar-turn-ev.ev-bonus,
+.ar-turn-ev.ev-start,
+.ar-turn-ev.ev-wide,
+.ar-turn-ev.ev-no-ball {
+  background: #2a3f1a;
+  color: #c9f66b;
+  border-color: #6f9a3a;
+}
+.ar-turn-body > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.ar-turn-body small {
+  font-size: clamp(9px, 1.8cqmin, 13px);
+  color: #b9c8ad;
+  letter-spacing: 0.04em;
+}
+.ar-turn-body strong {
+  font-family: var(--display);
+  font-size: clamp(15px, 3.7cqmin, 28px);
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+.ar-turn.tone-good .ar-turn-body strong {
+  color: #d6ff86;
+}
+.ar-turn.tone-bad .ar-turn-body strong {
+  color: #ff9d90;
+}
+.ar-turn-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ar-turn-chips .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px 3px 4px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: clamp(10px, 2cqmin, 15px);
+  background: #0c140a;
+  border: 1px solid #3a4d30;
+  animation: arLotIn 0.4s 0.15s both cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+.ar-turn-chips .chip i {
+  font-style: normal;
+  width: 1.5em;
+  height: 1.5em;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--team);
+  font-size: 0.85em;
+}
+.ar-turn-chips .chip:not(:has(i)) {
+  padding-left: 10px;
+}
+.ar-turn-chips .chip.good {
+  color: #c9f66b;
+  border-color: #5f8a30;
+}
+.ar-turn-chips .chip.bad {
+  color: #ff8a7c;
+  border-color: #8a3a30;
+}
+.ar-turn-chips .chip.money {
+  color: #f1c96a;
+  border-color: #7a6228;
+}

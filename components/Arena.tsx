@@ -40,6 +40,10 @@ import {
   scoutList,
   scoutLimit,
   MONOPOLY_WICKETS,
+  MONO_MAX_LEVEL,
+  monoLevel,
+  monoPoints,
+  monoUpgradeCost,
 } from "../lib/game.mjs";
 import Stadium from "./Stadium";
 
@@ -955,6 +959,94 @@ function TumbleDice({ values, rolling }: { values: number[]; rolling: boolean; s
   );
 }
 
+/** What every captain owns, and the runs each star is worth when someone lands on him. */
+function CenterRosters({ game }: { game: any }) {
+  const draft = game.phase === "draft";
+  return (
+    <div className="ar-center-rosters" style={css({ "--cols": game.seats.length })}>
+      {game.seats.map((s: any, i: number) => {
+        const owned = game.board.filter((t: any) => t.kind === "player" && t.owner === i);
+        return (
+          <div key={i} className={`ar-roster ${game.active === i ? "on" : ""}`} style={css({ "--team": teamColor(game, i) })}>
+            <header>
+              <i>{AVATARS[s.avatar ?? 0]}</i>
+              <span>{s.name}</span>
+              <b>{draft ? `${s.squad.length}/${game.settings.squadSize}` : `${s.score}`}</b>
+            </header>
+            <ul>
+              {owned.length ? (
+                owned.map((t: any) => {
+                  const p = player(t.id);
+                  return (
+                    <li key={t.id} title={`${p.name} · ${draft ? TIERS[p.tier].name : `${monoPoints(game, t)} runs per landing`}`} style={css({ "--tier": TIERS[p.tier].color })}>
+                      <img src={p.photo} alt="" />
+                      <span>{p.name.split(" ").slice(-1)[0]}</span>
+                      {draft ? <TierTag tier={p.tier} size="xs" /> : <b>{monoPoints(game, t)}</b>}
+                      {!draft && monoLevel(t) > 0 && <em>+{monoLevel(t)}</em>}
+                    </li>
+                  );
+                })
+              ) : (
+                <li className="none">no signings yet</li>
+              )}
+            </ul>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** The result of the turn that has just been played, for every captain to read. */
+function TurnResult({ game, turn, onClose }: { game: any; turn: any; onClose: () => void }) {
+  const who = game.seats[turn.seat];
+  const tile = turn.tile;
+  const p = tile?.kind === "player" ? player(tile.id) : null;
+  const chips: { text: string; tone: string; seat?: number }[] = [];
+  turn.runs.forEach((n: number, i: number) => n && chips.push({ text: `${n > 0 ? "+" : "−"}${Math.abs(n)} runs`, tone: n > 0 ? "good" : "bad", seat: i }));
+  turn.bank.forEach((n: number, i: number) => n && chips.push({ text: `${n > 0 ? "+" : "−"}${money(Math.abs(n)).replace(" Cr", "")} Cr`, tone: "money", seat: i }));
+  (turn.notes || []).forEach((t: string) => chips.push({ text: t, tone: "good" }));
+  if (turn.wicket) chips.push({ text: "WICKET", tone: "bad" });
+  return (
+    <div className="ar-turn-wrap" onClick={onClose}>
+      <div className={`ar-turn tone-${turn.tone}`} style={css({ "--team": teamColor(game, turn.seat) })} key={turn.id} role="status">
+        <div className="ar-turn-head">
+          <i>{AVATARS[who.avatar ?? 0]}</i>
+          <span>{who.name}</span>
+          <em>
+            rolled {turn.dice[0]} + {turn.dice[1]} = {turn.dice[0] + turn.dice[1]}
+          </em>
+        </div>
+        <div className="ar-turn-body">
+          {p ? (
+            <img src={p.photo} alt="" style={css({ "--tier": TIERS[p.tier].color })} />
+          ) : (
+            <span className={`ar-turn-ev ev-${tile?.kind}`}>{tile?.kind === "out" ? "W" : tile?.kind === "bonus" ? "×2" : tile?.kind === "start" ? "GO" : "+1"}</span>
+          )}
+          <div>
+            <small>
+              {p
+                ? `${p.name}${tile.owner !== null && tile.owner !== undefined ? ` · ${game.seats[tile.owner].name}'s${tile.lvl ? ` · SKILL +${tile.lvl}` : ""}` : ""}`
+                : tile?.label}
+            </small>
+            <strong>{turn.headline}</strong>
+          </div>
+        </div>
+        {chips.length > 0 && (
+          <div className="ar-turn-chips">
+            {chips.map((c, k) => (
+              <span key={k} className={`chip ${c.tone}`} style={c.seat !== undefined ? css({ "--team": teamColor(game, c.seat) }) : undefined}>
+                {c.seat !== undefined && <i>{AVATARS[game.seats[c.seat].avatar ?? 0]}</i>}
+                {c.text}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function BoardArena({
   game,
   seat,
@@ -983,12 +1075,33 @@ export function BoardArena({
     len,
     onStep,
   );
-  useEffect(() => {
-    onMotion?.(motion.busy);
-  }, [motion.busy]);
-  useEffect(() => () => onMotion?.(false), []);
   const moving = motion.busy;
-  const pending = game.pending && !moving ? player(game.board[game.pending.index].id) : null;
+  // a result card follows every turn once the token has stopped; the game holds still while it is on screen
+  const turn = game.turn;
+  const settled = !moving && motion.shown.every((q: number, i: number) => q === game.seats[i].position);
+  const seenTurn = useRef(turn ? `${turn.id}:${turn.done ? 1 : 0}` : "");
+  const [toast, setToast] = useState<any>(null);
+  useEffect(() => {
+    if (!turn || !turn.done || !settled) return;
+    const key = `${turn.id}:1`;
+    if (seenTurn.current === key) return;
+    seenTurn.current = key;
+    setToast(turn);
+  }, [turn?.id, turn?.done, settled]);
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(t);
+  }, [toast?.id]);
+  useEffect(() => {
+    onMotion?.(motion.busy || !!toast);
+  }, [motion.busy, !!toast]);
+  useEffect(() => () => onMotion?.(false), []);
+  const pendingTile = game.pending && !moving ? game.board[game.pending.index] : null;
+  const upgrading = !!pendingTile && game.pending.kind === "upgrade";
+  const pending = pendingTile ? player(pendingTile.id) : null;
+  const upCost = upgrading ? monoUpgradeCost(game, pendingTile) : 0;
+  const upLevel = upgrading ? monoLevel(pendingTile) : 0;
   const moverSeat = motion.mover !== null ? game.seats[motion.mover] : null;
   const pathSet = new Set(motion.path);
   const here = motion.mover !== null ? motion.shown[motion.mover] : null;
@@ -1031,7 +1144,13 @@ export function BoardArena({
                     <>
                       <img src={p.photo} alt="" loading="lazy" />
                       <span className="ar-tile-name">{p.name.split(" ").slice(-1)[0]}</span>
-                      <b>{owner ? TEAMS[owner.team].short : money(price(p, game.settings)).replace(" Cr", "")}</b>
+                      <b>
+                        {owner
+                          ? draft
+                            ? TEAMS[owner.team].short
+                            : `${monoPoints(game, tile)}${monoLevel(tile) ? ` ★${monoLevel(tile)}` : ""}`
+                          : money(price(p, game.settings)).replace(" Cr", "")}
+                      </b>
                     </>
                   ) : (
                     <>
@@ -1065,41 +1184,39 @@ export function BoardArena({
               </p>
 
               {pending ? (
-                <div className="ar-center-offer" style={css({ "--tier": TIERS[pending.tier].color })}>
+                <div className={`ar-center-offer ${upgrading ? "is-upgrade" : ""}`} style={css({ "--tier": TIERS[pending.tier].color })}>
                   <img src={pending.photo} alt="" />
                   <div>
-                    <TierTag tier={pending.tier} size="xs" />
+                    {upgrading ? <span className="ar-up-tag">UPGRADE · SKILL +{upLevel} → +{upLevel + 1}</span> : <TierTag tier={pending.tier} size="xs" />}
                     <strong>{pending.name}</strong>
                     <small>
-                      {ROLE[pending.role]} · {money(price(pending, game.settings))}
+                      {upgrading
+                        ? `${monoPoints(game, pendingTile)} → ${monoPoints(game, { ...pendingTile, lvl: upLevel + 1 })} runs · ${money(upCost)}`
+                        : `${ROLE[pending.role]} · ${money(price(pending, game.settings))}`}
                     </small>
                   </div>
                   {isTurn && (
                     <div className="ar-center-offer-actions">
-                      <button className="ar-btn ar-btn-primary" disabled={busy} onClick={() => onAction("buy")}>
-                        Sign
+                      <button className="ar-btn ar-btn-primary" disabled={busy} onClick={() => onAction(upgrading ? "upgrade" : "buy")}>
+                        {upgrading ? "Upgrade" : "Sign"}
                       </button>
                       <button className="ar-btn ar-btn-ghost" disabled={busy} onClick={() => onAction("pass")}>
-                        Pass
+                        {upgrading ? "Skip" : "Pass"}
                       </button>
                     </div>
                   )}
                 </div>
               ) : (
-                <button className="ar-center-roll" disabled={!canRoll} onClick={() => onAction("roll")}>
+                <button className="ar-center-roll" disabled={!canRoll} onClick={() => {
+                  setToast(null);
+                  onAction("roll");
+                }}>
                   <Dices size={20} />
                   {moving ? "Moving…" : isTurn ? "Roll the dice" : `Waiting for ${current.name}`}
                 </button>
               )}
 
-              <div className="ar-center-standings">
-                {game.seats.map((s: any, i: number) => (
-                  <span key={i} className={game.active === i ? "on" : ""} style={css({ "--team": teamColor(game, i) })}>
-                    <i>{AVATARS[s.avatar ?? 0]}</i>
-                    <b>{draft ? `${s.squad.length}/${game.settings.squadSize}` : `${s.score} runs`}</b>
-                  </span>
-                ))}
-              </div>
+              <CenterRosters game={game} />
             </div>
 
             {motion.shown.map((pos: number, i: number) => {
@@ -1124,6 +1241,7 @@ export function BoardArena({
                 </span>
               );
             })}
+            {toast && <TurnResult game={game} turn={toast} onClose={() => setToast(null)} />}
           </div>
         </div>
         <aside className="ar-panel">
@@ -1134,7 +1252,9 @@ export function BoardArena({
                 ? `${moverSeat?.name} is on the move`
                 : pending
                   ? isTurn
-                    ? "Sign this star?"
+                    ? upgrading
+                      ? "Upgrade your star?"
+                      : "Sign this star?"
                     : `${current.name} is deciding`
                   : isTurn
                     ? "Your move, captain."
@@ -1144,11 +1264,11 @@ export function BoardArena({
           <div className="ar-actions">
             {pending ? (
               <>
-                <button className="ar-btn ar-btn-primary" disabled={!isTurn || busy} onClick={() => onAction("buy")}>
-                  <Plus size={16} /> Sign for {money(price(pending, game.settings))}
+                <button className="ar-btn ar-btn-primary" disabled={!isTurn || busy} onClick={() => onAction(upgrading ? "upgrade" : "buy")}>
+                  <Plus size={16} /> {upgrading ? `Upgrade for ${money(upCost)}` : `Sign for ${money(price(pending, game.settings))}`}
                 </button>
                 <button className="ar-btn ar-btn-ghost" disabled={!isTurn || busy} onClick={() => onAction("pass")}>
-                  Pass <X size={15} />
+                  {upgrading ? "Skip" : "Pass"} <X size={15} />
                 </button>
               </>
             ) : (
@@ -1165,7 +1285,10 @@ export function BoardArena({
                 <p>Land on a player to sign or pass. Fill your {game.settings.squadSize}-player squad to unlock the match.</p>
               ) : (
                 <>
-                  <p>Signings score 2× price. Land on your own star for 3× price; rival stars take runs from you.</p>
+                  <p>
+                    Signings score 2× price. Land on your own star for his runs and pay to upgrade him: SKILL +1, +2, +3, each level adds 50% to
+                    his runs. Land on a rival's star and you lose those runs to him.
+                  </p>
                   <div>
                     <span className="good">+1</span> Wide / no ball · free roll
                   </div>
@@ -1203,7 +1326,13 @@ export function BoardArena({
                     <Face id={id} />
                     <span>
                       {player(id).name}
-                      <small>{ROLE[player(id).role]}</small>
+                      <small>
+                        {ROLE[player(id).role]}
+                        {!draft && (() => {
+                          const t = game.board.find((x: any) => x.kind === "player" && x.id === id);
+                          return t ? ` · ${monoPoints(game, t)} runs${monoLevel(t) ? ` · SKILL +${monoLevel(t)}` : ""}` : "";
+                        })()}
+                      </small>
                     </span>
                     <TierTag tier={player(id).tier} size="xs" />
                   </div>
