@@ -357,8 +357,11 @@
   transition: opacity 0.35s, filter 0.35s;
 }
 .ar-die.is-prev {
-  opacity: 0.5;
-  filter: saturate(0.55);
+  opacity: 0.45;
+  filter: saturate(0.5);
+}
+.ar-duel-sum .ar-die {
+  --size: clamp(40px, 6.6vh, 56px);
 }
 /* a die in the hand: shaken and tumbling until its result arrives */
 .ar-die.m-spin .ar-cube {
@@ -4286,6 +4289,9 @@
   .ar-match .ar-duel-card > small {
     grid-area: tier;
     font-size: 9.5px;
+  }
+  .ar-match .ar-duel-sum .ar-die {
+    --size: 40px;
   }
   .ar-match .ar-duel-sum {
     grid-area: sum;

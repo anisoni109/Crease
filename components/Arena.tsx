@@ -1449,17 +1449,8 @@ export function MatchArena({
   useEffect(() => {
     if (m.submitted[seat]) setSheet(false);
   }, [m.submitted[seat]]);
-  // once the result has had its moment, an opponent's early roll may start the next ball's display
-  const [settled, setSettled] = useState(true);
-  useEffect(() => {
-    if (!reveal) {
-      setSettled(false);
-      return;
-    }
-    const t = setTimeout(() => setSettled(true), 1500);
-    return () => clearTimeout(t);
-  }, [reveal, last?.id]);
-  const fresh = !over && reveal && (m.submitted[seat] || (settled && m.submitted.some(Boolean))); // a new ball is being rolled
+  // a new ball only begins on screen once YOU throw: until then the last roll stays on the table
+  const fresh = !over && reveal && !!m.submitted[seat];
   const showLast = !!last && reveal && !fresh;
   const history = useMemo(
     () => (held || game).match.history.filter((b: any) => b.innings === m.innings && !b.out && b.runs > 0 && b.id !== (reveal ? -1 : last?.id)),
@@ -1498,38 +1489,45 @@ export function MatchArena({
           </div>
           <div className={`ar-duel-cards ${showLast ? (last.out ? "res-out" : last.runs >= 4 ? "res-boundary" : "res-runs") : ""}`}>
             {[m.batting, m.bowling].map((idx: number, k: number) => {
-              // while the last ball is on show, keep the two players who contested it on the cards
-              const shownId = showLast || (!reveal && last) ? (k === 0 ? last.batter : last.bowler) : game.seats[idx].squad[k === 0 ? m.batter : m.bowler];
-              const seatIdx = showLast || (!reveal && last) ? (k === 0 ? last.batting : 1 - last.batting) : idx;
+              const nowId = game.seats[idx].squad[k === 0 ? m.batter : m.bowler];
+              const lastPlayer = last ? (k === 0 ? last.batter : last.bowler) : null;
+              // a card keeps showing the last ball until you throw, unless you have since picked someone else
+              const stale = showLast && (last.innings !== m.innings || nowId !== lastPlayer);
+              const card = showLast && !stale;
+              const onCard = card || (!reveal && !!last);
+              const shownId = onCard ? lastPlayer : nowId;
+              const seatIdx = onCard ? (k === 0 ? last.batting : 1 - last.batting) : idx;
               const p = player(shownId);
               const t = k === 0 ? p.batTier : p.bowlTier;
               const mod = k === 0 ? TIERS[t].bat : TIERS[t].bowl;
               const mine = seatIdx === seat;
               const lastDie = last?.[k === 0 ? "batDie" : "bowlDie"];
-              // the previous roll stays on the table until the next one is thrown
               const prevDie = last && last.innings === m.innings ? lastDie : null;
               const rolled = m.rolls[seatIdx];
-              const value = rolling && mine && !rolled && reveal && last?.id === lastId.current
+              const awaiting = rolling && mine && !rolled && reveal && last?.id === lastId.current; // thrown, result not back yet
+              const value = awaiting
                 ? null
-                : fresh
-                ? mine
-                  ? rolled || prevDie
-                  : prevDie
                 : !reveal && last
-                  ? mine
-                    ? lastDie
-                    : null
-                  : showLast
-                    ? lastDie
-                    : prevDie;
-              const isPrev = !!value && value === prevDie && !showLast && reveal && !(mine && (rolled || rolling));
-              const spinning = (rolling && mine) || (!reveal && !!last && !mine);
-              const total = showLast ? (k === 0 ? last.batTotal : last.bowlTotal) : null;
-              const won = showLast && (k === 0 ? !last.out && last.runs > 0 : last.out);
+                  ? lastDie
+                  : fresh
+                    ? mine
+                      ? rolled
+                      : null
+                    : card
+                      ? lastDie
+                      : stale
+                        ? prevDie
+                        : null;
+              const isPrev = stale && !!value;
+              // every die in play is thrown: yours on the click, the other captain's as soon as it is their turn
+              const spinning = (rolling && mine) || (!reveal && !!last) || (fresh && !mine);
+              const total = card ? (k === 0 ? last.batTotal : last.bowlTotal) : null;
+              const won = card && (k === 0 ? !last.out && last.runs > 0 : last.out);
+              const locked = !!m.submitted[seatIdx] && !over && (fresh || reveal);
               return (
                 <div
                   key={k}
-                  className={`ar-duel-card ${k === 0 ? "is-bat" : "is-bowl"} ${mine ? "is-mine" : ""} ${won ? "is-winner" : showLast ? "is-settled" : ""}`}
+                  className={`ar-duel-card ${k === 0 ? "is-bat" : "is-bowl"} ${mine ? "is-mine" : ""} ${won ? "is-winner" : card ? "is-settled" : ""}`}
                   style={css({ "--team": teamColor(game, seatIdx), "--tier": TIERS[t].color })}
                 >
                   <span className="ar-duel-role">
@@ -1544,7 +1542,7 @@ export function MatchArena({
                     {TIERS[t].name} {k === 0 ? "bat" : "ball"}
                   </small>
                   <div className="ar-duel-sum">
-                    <ArDie value={value} rolling={spinning} size={38} prev={isPrev} />
+                    <ArDie value={value} rolling={spinning} size={0} prev={isPrev} />
                     <span className="ar-duel-mod" title="Tier bonus">
                       {fmtMod(mod)}
                     </span>
@@ -1553,20 +1551,20 @@ export function MatchArena({
                       {total === null ? "?" : <Count value={total} ms={350} />}
                     </b>
                   </div>
-                  <span className={m.submitted[seatIdx] && fresh ? "ar-locked" : "ar-waiting"}>
-                    {fresh ? (
-                      m.submitted[seatIdx] ? (
-                        <>
-                          <Check size={11} /> LOCKED IN
-                        </>
-                      ) : mine ? (
-                        "your roll"
-                      ) : (
-                        "to roll"
-                      )
+                  <span className={locked ? "ar-locked" : "ar-waiting"}>
+                    {locked ? (
+                      <>
+                        <Check size={11} /> LOCKED IN
+                      </>
                     ) : !reveal && last ? (
                       "ball in play…"
-                    ) : showLast ? (
+                    ) : fresh ? (
+                      mine ? (
+                        "your roll"
+                      ) : (
+                        "rolling…"
+                      )
+                    ) : card ? (
                       won ? (
                         "wins the ball"
                       ) : (
