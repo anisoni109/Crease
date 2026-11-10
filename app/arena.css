@@ -349,45 +349,127 @@
   filter: blur(4px);
   opacity: 0.45;
 }
-.ar-die.is-set .ar-cube {
-  animation: arCubeLand 0.85s cubic-bezier(0.2, 0.85, 0.3, 1.12);
-}
-.ar-die.is-set .ar-die-shadow {
-  animation: arCubeShadow 0.85s ease-out;
-}
-.ar-die.is-rolling .ar-cube {
-  animation: arCubeSpin 0.55s linear infinite;
-}
-.ar-die.is-rolling .ar-die-shadow {
-  animation: arCubeShadowRoll 0.55s ease-in-out infinite;
-}
 .ar-die.is-blank .ar-cube {
   opacity: 0.35;
 }
 .ar-die {
   transform: scale(0.88);
+  transition: opacity 0.35s, filter 0.35s;
 }
-@keyframes arCubeSpin {
-  0% { transform: translateY(0) rotateX(0) rotateY(0) rotateZ(0); }
-  50% { transform: translateY(-22%) rotateX(270deg) rotateY(200deg) rotateZ(60deg) scale(1.08); }
-  100% { transform: translateY(0) rotateX(540deg) rotateY(400deg) rotateZ(120deg); }
+.ar-die.is-prev {
+  opacity: 0.5;
+  filter: saturate(0.55);
 }
-@keyframes arCubeLand {
-  0% { transform: translateY(-46%) rotateX(calc(var(--rx) - 500deg)) rotateY(calc(var(--ry) - 380deg)) rotateZ(-40deg) scale(1.18); }
-  55% { transform: translateY(0) rotateX(calc(var(--rx) - 30deg)) rotateY(calc(var(--ry) - 16deg)) rotateZ(4deg) scale(0.96); }
-  75% { transform: translateY(-9%) rotateX(calc(var(--rx) + 8deg)) rotateY(calc(var(--ry) + 5deg)) scale(1.02); }
-  100% { transform: translateY(0) rotateX(var(--rx)) rotateY(var(--ry)) scale(1); }
+/* a die in the hand: shaken and tumbling until its result arrives */
+.ar-die.m-spin .ar-cube {
+  animation: arCubeShake 0.62s linear infinite;
+  animation-delay: var(--d, 0s);
 }
-@keyframes arCubeShadow {
-  0% { transform: scale(0.5); opacity: 0.15; }
-  55% { transform: scale(1.05); opacity: 0.5; }
+.ar-die.m-spin .ar-die-shadow {
+  animation: arShShake 0.62s ease-in-out infinite;
 }
-@keyframes arCubeShadowRoll {
-  50% { transform: scale(0.7); opacity: 0.25; }
+/* thrown: tossed up, bounces three times, rolls to rest on the rolled face */
+.ar-die.m-throw .ar-cube {
+  animation: arCubeThrow 1.2s linear var(--wait, 0ms) both;
 }
-@keyframes arCubeIdle {
-  from { transform: rotateX(-18deg) rotateY(0); }
-  to { transform: rotateX(-18deg) rotateY(360deg); }
+.ar-die.m-throw .ar-die-shadow {
+  animation: arShThrow 1.2s linear var(--wait, 0ms) both;
+}
+/* dropped in after spinning: two bounces and a settle */
+.ar-die.m-land .ar-cube {
+  animation: arCubeDrop 0.95s linear var(--wait, 0ms) both;
+}
+.ar-die.m-land .ar-die-shadow {
+  animation: arShDrop 0.95s linear var(--wait, 0ms) both;
+}
+@keyframes arCubeShake {
+  0% { transform: translate(0, 0) rotateX(0) rotateY(0) rotateZ(0); }
+  20% { transform: translate(-9%, -24%) scale(1.08) rotateX(150deg) rotateY(100deg) rotateZ(30deg); }
+  40% { transform: translate(8%, -8%) rotateX(260deg) rotateY(210deg) rotateZ(-24deg); }
+  60% { transform: translate(-6%, -28%) scale(1.1) rotateX(450deg) rotateY(250deg) rotateZ(36deg); }
+  80% { transform: translate(7%, -6%) rotateX(580deg) rotateY(330deg) rotateZ(-12deg); }
+  100% { transform: translate(0, 0) rotateX(720deg) rotateY(360deg) rotateZ(0); }
+}
+@keyframes arShShake {
+  25%, 65% { transform: scale(0.62); opacity: 0.22; }
+  45%, 85% { transform: scale(0.95); opacity: 0.4; }
+}
+@keyframes arCubeThrow {
+  0% {
+    transform: translate(var(--dx), 8%) scale(0.9) rotateX(calc(var(--rx) + var(--ax))) rotateY(calc(var(--ry) + var(--ay))) rotateZ(var(--az));
+    animation-timing-function: cubic-bezier(0.15, 0.75, 0.3, 1);
+  }
+  22% {
+    transform: translate(calc(var(--dx) * 0.35), -112%) scale(1.26) rotateX(calc(var(--rx) + var(--ax) * 0.6)) rotateY(calc(var(--ry) + var(--ay) * 0.6)) rotateZ(calc(var(--az) * 0.55));
+    animation-timing-function: cubic-bezier(0.55, 0, 0.95, 0.55);
+  }
+  55% {
+    transform: translate(calc(var(--dx) * 0.08), 0) scale(1) rotateX(calc(var(--rx) + var(--ax) * 0.2)) rotateY(calc(var(--ry) + var(--ay) * 0.2)) rotateZ(calc(var(--az) * 0.12));
+    animation-timing-function: cubic-bezier(0.2, 0.65, 0.4, 1);
+  }
+  65% {
+    transform: translate(calc(var(--dx) * -0.06), -34%) scale(1.08) rotateX(calc(var(--rx) + var(--ax) * 0.1)) rotateY(calc(var(--ry) + var(--ay) * 0.1)) rotateZ(calc(var(--az) * -0.06));
+    animation-timing-function: cubic-bezier(0.5, 0, 0.9, 0.5);
+  }
+  74% {
+    transform: translate(0, 0) scale(1) rotateX(calc(var(--rx) + var(--ax) * 0.045)) rotateY(calc(var(--ry) + var(--ay) * 0.045)) rotateZ(calc(var(--az) * 0.03));
+    animation-timing-function: cubic-bezier(0.2, 0.65, 0.4, 1);
+  }
+  81% {
+    transform: translate(0, -12%) scale(1.03) rotateX(calc(var(--rx) + var(--ax) * 0.02)) rotateY(calc(var(--ry) + var(--ay) * 0.02)) rotateZ(calc(var(--az) * -0.012));
+    animation-timing-function: cubic-bezier(0.5, 0, 0.9, 0.5);
+  }
+  88% {
+    transform: translate(0, 0) scale(1) rotateX(var(--rx)) rotateY(var(--ry)) rotateZ(0);
+    animation-timing-function: cubic-bezier(0.2, 0.65, 0.4, 1);
+  }
+  93% {
+    transform: translate(0, -3%) scale(1) rotateX(var(--rx)) rotateY(var(--ry)) rotateZ(0);
+    animation-timing-function: ease-in;
+  }
+  100% {
+    transform: translate(0, 0) scale(1) rotateX(var(--rx)) rotateY(var(--ry)) rotateZ(0);
+  }
+}
+@keyframes arShThrow {
+  0% { transform: scale(0.9); opacity: 0.3; }
+  22% { transform: scale(0.42); opacity: 0.1; }
+  55% { transform: scale(1.06); opacity: 0.5; }
+  65% { transform: scale(0.8); opacity: 0.3; }
+  74% { transform: scale(1.02); opacity: 0.48; }
+  81% { transform: scale(0.92); opacity: 0.4; }
+  88%, 100% { transform: scale(1); opacity: 0.45; }
+}
+@keyframes arCubeDrop {
+  0% {
+    transform: translate(calc(var(--dx) * 0.3), -80%) scale(1.26) rotateX(calc(var(--rx) + var(--ax) * 0.5)) rotateY(calc(var(--ry) + var(--ay) * 0.5)) rotateZ(calc(var(--az) * 0.4));
+    animation-timing-function: cubic-bezier(0.55, 0, 0.95, 0.55);
+  }
+  45% {
+    transform: translate(0, 0) scale(1) rotateX(calc(var(--rx) + var(--ax) * 0.12)) rotateY(calc(var(--ry) + var(--ay) * 0.12)) rotateZ(calc(var(--az) * 0.07));
+    animation-timing-function: cubic-bezier(0.2, 0.65, 0.4, 1);
+  }
+  58% {
+    transform: translate(0, -26%) scale(1.06) rotateX(calc(var(--rx) + var(--ax) * 0.05)) rotateY(calc(var(--ry) + var(--ay) * 0.05)) rotateZ(calc(var(--az) * -0.03));
+    animation-timing-function: cubic-bezier(0.5, 0, 0.9, 0.5);
+  }
+  70% {
+    transform: translate(0, 0) scale(1) rotateX(var(--rx)) rotateY(var(--ry)) rotateZ(0);
+    animation-timing-function: cubic-bezier(0.2, 0.65, 0.4, 1);
+  }
+  79% {
+    transform: translate(0, -8%) scale(1) rotateX(var(--rx)) rotateY(var(--ry)) rotateZ(0);
+    animation-timing-function: ease-in;
+  }
+  88%, 100% {
+    transform: translate(0, 0) scale(1) rotateX(var(--rx)) rotateY(var(--ry)) rotateZ(0);
+  }
+}
+@keyframes arShDrop {
+  0% { transform: scale(0.4); opacity: 0.1; }
+  45% { transform: scale(1.05); opacity: 0.5; }
+  58% { transform: scale(0.85); opacity: 0.33; }
+  70%, 100% { transform: scale(1); opacity: 0.45; }
 }
 
 /* ---------- top strip: seats + up next ---------- */
@@ -4119,6 +4201,210 @@
     width: auto;
   }
   .ar-scout-row .ar-tag {
+    display: none;
+  }
+}
+
+/* ==========================================================================
+   MATCH ON PHONES — score, field, dice duel and the Roll button share one
+   screen; the squad picker and autoplay slide up from the bottom.
+   ========================================================================== */
+.ar-sheet-btn,
+.ar-sheet-bar,
+.ar-sheet-back {
+  display: none;
+}
+@media (max-width: 900px) {
+  .ar-body:has(> .ar-match) {
+    overflow: hidden;
+    margin: 0;
+    padding: 0;
+  }
+  .ar-match {
+    height: 100%;
+    gap: 6px;
+  }
+  .ar-match .ar-score {
+    order: -1;
+    min-height: 46px;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .ar-match .ar-score-team > b {
+    font-size: 26px;
+  }
+  .ar-match-main {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .ar-match .ar-field {
+    flex: 1 1 0;
+    height: auto;
+    min-height: 96px;
+  }
+  .ar-match .ar-duel {
+    flex: none;
+    padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+    gap: 6px;
+    overflow: visible;
+  }
+  .ar-match .ar-duel-head {
+    display: none;
+  }
+  .ar-match .ar-duel-cards {
+    gap: 8px;
+  }
+  .ar-match .ar-duel-card {
+    padding: 6px 4px 6px;
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr);
+    grid-template-areas: "role role" "photo name" "photo tier" "sum sum" "state state";
+    column-gap: 7px;
+    text-align: left;
+    align-items: center;
+  }
+  .ar-match .ar-duel-role {
+    grid-area: role;
+    justify-self: center;
+    font-size: 8.5px;
+    letter-spacing: 1px;
+  }
+  .ar-match .ar-duel-photo {
+    grid-area: photo;
+    width: 38px;
+  }
+  .ar-match .ar-duel-card > strong {
+    grid-area: name;
+    font-size: 12px;
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ar-match .ar-duel-card > small {
+    grid-area: tier;
+    font-size: 9.5px;
+  }
+  .ar-match .ar-duel-sum {
+    grid-area: sum;
+    margin: 6px 0 2px;
+    gap: 4px;
+  }
+  .ar-match .ar-duel-total {
+    min-width: 30px;
+    height: 30px;
+    font-size: 20px;
+  }
+  .ar-match .ar-duel-card .ar-locked,
+  .ar-match .ar-duel-card .ar-waiting {
+    grid-area: state;
+    justify-self: center;
+    min-height: 11px;
+    font-size: 9.5px;
+  }
+  .ar-match .ar-duel-cards .ar-vs {
+    top: 38%;
+    transform: translate(-50%, -50%) scale(0.8);
+  }
+  .ar-match .ar-equation {
+    padding: 4px 10px;
+  }
+  .ar-match .ar-equation strong {
+    font-size: 16px;
+  }
+  .ar-match .ar-actions {
+    position: static;
+    margin: 0;
+    padding: 0;
+    background: none;
+    border: 0;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .ar-match .ar-actions .ar-roll {
+    min-height: 48px;
+  }
+  .ar-match .ar-sheet-btn {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    min-width: 62px;
+    font-size: 9.5px;
+    letter-spacing: 0.4px;
+  }
+  .ar-match .ar-sheet-back {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    background: #000a;
+  }
+  .ar-match .ar-panel-scroll {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 71;
+    max-height: 76dvh;
+    margin: 0;
+    padding: 12px 14px calc(14px + env(safe-area-inset-bottom));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: #151d15;
+    border-top: 1px solid var(--ar-line);
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -18px 40px #000a;
+    transform: translateY(104%);
+    visibility: hidden;
+    transition:
+      transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1),
+      visibility 0s 0.28s;
+  }
+  .ar-match .ar-panel-scroll.is-open {
+    transform: none;
+    visibility: visible;
+    transition: transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  .ar-match .ar-sheet-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: -12px;
+    z-index: 2;
+    margin: -12px -14px 0;
+    padding: 12px 14px 8px;
+    background: #151d15;
+  }
+  .ar-match .ar-sheet-bar strong {
+    font-family: var(--display);
+    font-size: 15px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .ar-match .ar-sheet-bar .ar-btn {
+    min-height: 34px;
+    padding: 0 16px;
+  }
+  .ar-match .ar-pick-head {
+    display: none;
+  }
+}
+@media (max-width: 900px) and (max-height: 600px) {
+  .ar-match .ar-duel-card > small,
+  .ar-match .ar-duel-photo {
+    display: none;
+  }
+  .ar-match .ar-duel-card {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "role" "name" "sum" "state";
+    text-align: center;
+  }
+  .ar-match .ar-equation {
     display: none;
   }
 }

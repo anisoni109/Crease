@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { diceDrop, diceRattle, diceThrow } from "../lib/diceSound";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -17,6 +18,7 @@ import {
   Plus,
   Shield,
   Sparkles,
+  Users,
   X,
   Zap,
 } from "lucide-react";
@@ -61,30 +63,82 @@ export function TierTag({ tier, size = "" }: { tier: string; size?: string }) {
 const PIPS: Record<number, number[]> = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
 // which way to turn the cube so a face points at the viewer
 const FACE_TURN: Record<number, [number, number]> = { 1: [0, 0], 2: [90, 0], 3: [0, -90], 4: [0, 90], 5: [-90, 0], 6: [0, 180] };
-/** A real six-faced cube: spins while rolling, then tumbles on to the rolled face. */
+type DieMode = "rest" | "spin" | "throw" | "land";
+const turns = () => (Math.random() < 0.5 ? -1 : 1) * 360 * (1 + Math.floor(Math.random() * 2));
+/**
+ * A real six-faced cube. Thrown dice are shaken, tossed, bounce three times and settle on the rolled face;
+ * a die whose result is still on its way keeps tumbling, then drops in; a resting die just shows its face.
+ */
 export function ArDie({
   value,
   rolling = false,
   size = 46,
   tint = "",
-  nonce = "",
+  delay = 0,
+  prev = false,
 }: {
   value: number | null;
   rolling?: boolean;
   size?: number;
   tint?: string;
+  /** ms to wait before throwing, so several dice do not land in unison */
+  delay?: number;
+  /** the face shown is the previous roll, waiting for the next one */
+  prev?: boolean;
   nonce?: string | number;
 }) {
   const v = value || 0;
   const [rx, ry] = FACE_TURN[v || 1];
+  const [mode, setMode] = useState<DieMode>("rest");
+  const [run, setRun] = useState({ n: 0, ax: 720, ay: -360, az: 360, dx: 0 });
+  const seen = useRef({ v, rolling, mode: "rest" as DieMode });
+  useEffect(() => {
+    const p = seen.current;
+    let next: DieMode | null = null;
+    if (rolling && !v) next = "spin";
+    else if (rolling && v) next = p.mode === "spin" ? "land" : !p.rolling || !p.v || p.v !== v ? "throw" : null;
+    else if (v && !rolling) next = p.mode === "throw" ? null : p.v !== v || p.mode === "spin" ? "land" : null;
+    else if (!v && !rolling && p.mode === "spin") next = "rest";
+    seen.current = { v, rolling, mode: next ?? p.mode };
+    if (!next) return;
+    setMode(next);
+    if (next === "throw" || next === "land") {
+      setRun((r) => ({ n: r.n + 1, ax: turns(), ay: turns(), az: (Math.random() < 0.5 ? -1 : 1) * 360, dx: Math.round((Math.random() - 0.5) * 70) }));
+      if (next === "throw") diceThrow(delay);
+      else diceDrop(delay);
+    } else if (next === "spin") diceRattle(delay);
+  }, [v, rolling]);
+  useEffect(() => {
+    if (mode !== "throw" && mode !== "land") return;
+    const t = setTimeout(() => {
+      seen.current.mode = "rest";
+      setMode("rest");
+    }, (mode === "throw" ? 1200 : 950) + delay + 250);
+    return () => clearTimeout(t);
+  }, [mode, run.n]);
+  const settle = (e: any) => {
+    if (e.target !== e.currentTarget || !/^arCube(Throw|Drop)$/.test(e.animationName)) return;
+    seen.current.mode = "rest";
+    setMode("rest");
+  };
   return (
     <div
-      className={`ar-die ${rolling ? "is-rolling" : v ? "is-set" : "is-blank"}`}
-      style={css({ ...(size ? { "--size": `${size}px` } : {}), "--tint": tint || "#f3f5e6", "--rx": `${rx}deg`, "--ry": `${ry}deg` })}
+      className={`ar-die m-${mode} ${v ? "" : "is-blank"} ${prev && mode === "rest" ? "is-prev" : ""}`}
+      style={css({
+        ...(size ? { "--size": `${size}px` } : {}),
+        "--tint": tint || "#f3f5e6",
+        "--rx": `${rx}deg`,
+        "--ry": `${ry}deg`,
+        "--ax": `${run.ax}deg`,
+        "--ay": `${run.ay}deg`,
+        "--az": `${run.az}deg`,
+        "--dx": `${run.dx}%`,
+        "--wait": `${delay}ms`,
+      })}
       role="img"
-      aria-label={rolling ? "Die rolling" : v ? `Die shows ${v}` : "Die not rolled"}
+      aria-label={mode === "spin" ? "Die rolling" : v ? `Die shows ${v}` : "Die not rolled"}
     >
-      <div className="ar-cube" key={rolling ? "roll" : `${v}-${nonce}`}>
+      <div className="ar-cube" key={`${mode}-${run.n}`} onAnimationEnd={settle}>
         {[1, 2, 3, 4, 5, 6].map((f) => (
           <div key={f} className={`ar-cube-face f${f}`}>
             {Array.from({ length: 9 }, (_, i) => (
@@ -93,7 +147,7 @@ export function ArDie({
           </div>
         ))}
       </div>
-      <span className="ar-die-shadow" />
+      <span className="ar-die-shadow" key={`s${mode}-${run.n}`} />
     </div>
   );
 }
@@ -832,7 +886,7 @@ function tileXY(i: number, length: number) {
  * then walk the token one tile at a time. `busy` is true while anything is
  * animating so the page can hold AI turns and the panel can wait for the landing.
  */
-const ROLL_MS = 750,
+const ROLL_MS = 1250,
   STEP_MS = 260;
 function useBoardMotion(positions: number[], length: number, onStep?: () => void) {
   const [shown, setShown] = useState<number[]>(positions);
@@ -894,7 +948,7 @@ function TumbleDice({ values, rolling }: { values: number[]; rolling: boolean; s
     <div className={`ar-tray-dice ${rolling ? "is-rolling" : "is-landed"}`}>
       {values.map((v, i) => (
         <div key={i} className="ar-tray-die" style={css({ "--d": `${i * 0.09}s` })}>
-          <ArDie value={v} rolling={rolling} size={0} nonce={values.join("")} />
+          <ArDie value={v} rolling={rolling} size={0} delay={i * 110} />
         </div>
       ))}
     </div>
@@ -1391,6 +1445,10 @@ export function MatchArena({
     };
   }, [game]);
   const over = game.phase !== "match";
+  const [sheet, setSheet] = useState(false); // phones: squad & autoplay slide up instead of sitting below the fold
+  useEffect(() => {
+    if (m.submitted[seat]) setSheet(false);
+  }, [m.submitted[seat]]);
   // once the result has had its moment, an opponent's early roll may start the next ball's display
   const [settled, setSettled] = useState(true);
   useEffect(() => {
@@ -1448,8 +1506,24 @@ export function MatchArena({
               const mod = k === 0 ? TIERS[t].bat : TIERS[t].bowl;
               const mine = seatIdx === seat;
               const lastDie = last?.[k === 0 ? "batDie" : "bowlDie"];
-              const value = fresh ? (mine ? m.rolls[seatIdx] : null) : !reveal && last ? (mine ? lastDie : null) : showLast ? lastDie : null;
-              const spinning = (rolling && mine) || (!reveal && !!last && !mine) || (fresh && !mine && m.submitted[seatIdx]);
+              // the previous roll stays on the table until the next one is thrown
+              const prevDie = last && last.innings === m.innings ? lastDie : null;
+              const rolled = m.rolls[seatIdx];
+              const value = rolling && mine && !rolled && reveal && last?.id === lastId.current
+                ? null
+                : fresh
+                ? mine
+                  ? rolled || prevDie
+                  : prevDie
+                : !reveal && last
+                  ? mine
+                    ? lastDie
+                    : null
+                  : showLast
+                    ? lastDie
+                    : prevDie;
+              const isPrev = !!value && value === prevDie && !showLast && reveal && !(mine && (rolled || rolling));
+              const spinning = (rolling && mine) || (!reveal && !!last && !mine);
               const total = showLast ? (k === 0 ? last.batTotal : last.bowlTotal) : null;
               const won = showLast && (k === 0 ? !last.out && last.runs > 0 : last.out);
               return (
@@ -1470,7 +1544,7 @@ export function MatchArena({
                     {TIERS[t].name} {k === 0 ? "bat" : "ball"}
                   </small>
                   <div className="ar-duel-sum">
-                    <ArDie value={value} rolling={spinning} size={38} nonce={`${last?.id}-${fresh}`} />
+                    <ArDie value={value} rolling={spinning} size={38} prev={isPrev} />
                     <span className="ar-duel-mod" title="Tier bonus">
                       {fmtMod(mod)}
                     </span>
@@ -1540,8 +1614,19 @@ export function MatchArena({
               {rolling ? "Rolling…" : my.autoBalls > 0 ? "Autoplay running…" : m.submitted[seat] ? "Locked · waiting…" : batting ? "Roll to bat" : "Roll to bowl"}
               {m.submitted[seat] ? <Check size={16} /> : <ArrowRight size={17} />}
             </button>
+            <button className="ar-btn ar-btn-ghost ar-sheet-btn" onClick={() => setSheet(true)} aria-label="Pick player and autoplay">
+              <Users size={16} />
+              <span>{batting ? "Batter" : "Bowler"}</span>
+            </button>
           </div>
-          <div className="ar-panel-scroll">
+          {sheet && <div className="ar-sheet-back" onClick={() => setSheet(false)} />}
+          <div className={`ar-panel-scroll ${sheet ? "is-open" : ""}`}>
+            <div className="ar-sheet-bar">
+              <strong>{batting ? "Pick your batter" : "Pick your bowler"}</strong>
+              <button className="ar-btn ar-btn-primary" onClick={() => setSheet(false)}>
+                Done
+              </button>
+            </div>
             <div className="ar-auto">
               <div>
                 <h4>
@@ -1595,7 +1680,10 @@ export function MatchArena({
                     <button
                       className={`${selected ? "is-selected" : ""} ${!eligible ? "is-out" : ""}`}
                       disabled={!eligible || m.submitted[seat] || busy || (!batting && m.balls % 6 !== 0)}
-                      onClick={() => onAction("select", { index: i })}
+                      onClick={() => {
+                        onAction("select", { index: i });
+                        setSheet(false);
+                      }}
                       style={css({ "--tier": TIERS[t].color })}
                     >
                       <Face id={id} />

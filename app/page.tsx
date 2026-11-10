@@ -53,6 +53,7 @@ import {
 } from "../lib/game.mjs";
 import { API_BASE } from "../lib/paths";
 import { claudeHosted, claudeRoom } from "../lib/claudeParty";
+import { setDiceSound, unlockAudio } from "../lib/diceSound";
 import SetupFlow from "../components/SetupFlow";
 import Statistics, { Scorecard } from "../components/Statistics";
 import { makeRecord } from "../lib/records.mjs";
@@ -240,6 +241,8 @@ export default function CricketGame() {
     clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(""), 4300);
   };
+  useEffect(() => setDiceSound(sound), [sound]);
+  useEffect(() => unlockAudio(), []);
   function playNote(kind = "roll") {
     if (!sound) return;
     try {
@@ -499,7 +502,7 @@ export default function CricketGame() {
     if (busy || rolling) return;
     if (type === "roll" || type === "toss") {
       setRolling(true);
-      playNote(type === "toss" ? "buy" : "roll");
+      if (type === "toss") playNote("buy");
       setTimeout(() => setRolling(false), type === "toss" ? 1250 : 850);
     } else if (type === "buy" || type === "bid") playNote("buy");
     if (party) {
