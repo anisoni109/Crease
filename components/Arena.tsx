@@ -11,6 +11,8 @@ import {
   Dices,
   Gavel,
   HelpCircle,
+  Search,
+  PhoneCall,
   Loader2,
   Plus,
   Shield,
@@ -33,6 +35,9 @@ import {
   bowlingOptions,
   bowlerLimit,
   upcomingLots,
+  scoutList,
+  scoutLimit,
+  MONOPOLY_WICKETS,
 } from "../lib/game.mjs";
 import Stadium from "./Stadium";
 
@@ -53,21 +58,87 @@ export function TierTag({ tier, size = "" }: { tier: string; size?: string }) {
   );
 }
 
-export function ArDie({ value, rolling = false, size = 46, tint = "" }: { value: number | null; rolling?: boolean; size?: number; tint?: string }) {
-  const dots: Record<number, number[]> = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
+const PIPS: Record<number, number[]> = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
+// which way to turn the cube so a face points at the viewer
+const FACE_TURN: Record<number, [number, number]> = { 1: [0, 0], 2: [90, 0], 3: [0, -90], 4: [0, 90], 5: [-90, 0], 6: [0, 180] };
+/** A real six-faced cube: spins while rolling, then tumbles on to the rolled face. */
+export function ArDie({
+  value,
+  rolling = false,
+  size = 46,
+  tint = "",
+  nonce = "",
+}: {
+  value: number | null;
+  rolling?: boolean;
+  size?: number;
+  tint?: string;
+  nonce?: string | number;
+}) {
   const v = value || 0;
+  const [rx, ry] = FACE_TURN[v || 1];
   return (
     <div
-      className={`ar-die ${rolling ? "is-rolling" : ""} ${v ? "" : "is-blank"}`}
-      style={css(size ? { "--size": `${size}px`, "--tint": tint || "#eef2dc" } : { "--tint": tint || "#eef2dc" })}
-      aria-label={v ? `Die shows ${v}` : "Die not rolled"}
-      key={rolling ? "r" : `v${v}`}
+      className={`ar-die ${rolling ? "is-rolling" : v ? "is-set" : "is-blank"}`}
+      style={css({ ...(size ? { "--size": `${size}px` } : {}), "--tint": tint || "#f3f5e6", "--rx": `${rx}deg`, "--ry": `${ry}deg` })}
+      role="img"
+      aria-label={rolling ? "Die rolling" : v ? `Die shows ${v}` : "Die not rolled"}
     >
-      {Array.from({ length: 9 }, (_, i) => (
-        <i key={i} className={v && dots[v].includes(i) ? "on" : ""} />
-      ))}
+      <div className="ar-cube" key={rolling ? "roll" : `${v}-${nonce}`}>
+        {[1, 2, 3, 4, 5, 6].map((f) => (
+          <div key={f} className={`ar-cube-face f${f}`}>
+            {Array.from({ length: 9 }, (_, i) => (
+              <i key={i} className={PIPS[f].includes(i) ? "on" : ""} />
+            ))}
+          </div>
+        ))}
+      </div>
+      <span className="ar-die-shadow" />
     </div>
   );
+}
+
+/** Counts a number up or down to its new value. */
+export function Count({ value, ms = 450 }: { value: number; ms?: number }) {
+  const [shown, setShown] = useState(value);
+  const from = useRef(value);
+  useEffect(() => {
+    const start = from.current,
+      diff = value - start;
+    if (!diff) return;
+    const t0 = performance.now();
+    let raf = 0;
+    const tick = (now: number) => {
+      const k = Math.min(1, (now - t0) / ms);
+      const eased = 1 - Math.pow(1 - k, 3);
+      const cur = Math.round(start + diff * eased);
+      from.current = cur;
+      setShown(cur);
+      if (k < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value]);
+  return <>{shown}</>;
+}
+export function useDelayed<T>(value: T, ms: number): T {
+  const [shown, setShown] = useState(value);
+  useEffect(() => {
+    if (!ms) {
+      setShown(value);
+      return;
+    }
+    const t = setTimeout(() => setShown(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return ms ? shown : value;
+}
+const fmtMod = (n: number) => `${n >= 0 ? "+" : "−"}${Math.abs(n)}`;
+/** When the replay shows the outcome of a ball (ms after it resolves). Mirrors the stadium timeline. */
+export function revealMs(last: any) {
+  if (!last) return 0;
+  if (last.out) return last.shot === "Bowled" ? 1400 : last.shot === "LBW" ? 1600 : 2250;
+  return last.runs === 6 ? 2300 : last.runs === 4 ? 2050 : 1550;
 }
 
 function Face({ id, className = "" }: { id: number; className?: string }) {
@@ -139,6 +210,7 @@ export function ArenaHead({
   onRules,
   onCopy,
   extra,
+  tickerDelay = 0,
 }: {
   game: any;
   party: any;
@@ -146,6 +218,7 @@ export function ArenaHead({
   onRules: () => void;
   onCopy: () => void;
   extra?: React.ReactNode;
+  tickerDelay?: number;
 }) {
   const title =
     game.phase === "auction"
@@ -156,10 +229,12 @@ export function ArenaHead({
           ? "Cricket Monopoly"
           : game.phase === "toss"
             ? "The Toss"
+            : game.phase === "results"
+              ? "Full Time"
             : game.match?.innings === 1
               ? "The Chase"
               : "First Innings";
-  const latest = game.log?.[0];
+  const latest = useDelayed(game.log?.[0], tickerDelay);
   return (
     <header className="ar-head">
       <button className="ar-home" onClick={onHome} aria-label="Back to home">
@@ -210,7 +285,7 @@ function setInfo(game: any, id: number) {
   return { tier, total: inSet.length, index: done };
 }
 
-export function Ledger({ game, seat }: { game: any; seat: number }) {
+export function Ledger({ game, seat, onBuy }: { game: any; seat: number; onBuy?: (id: number) => void }) {
   const [filter, setFilter] = useState("all");
   const a = game.auction;
   const rows: any[] = useMemo(() => {
@@ -225,7 +300,9 @@ export function Ledger({ game, seat }: { game: any; seat: number }) {
     unsold: rows.filter((r) => r.status === "unsold").length,
     auto: rows.filter((r) => r.status === "auto").length,
   };
-  const remaining = Math.max(0, a.pool.length - a.cursor);
+  const ownedIds = new Set(game.seats.flatMap((x: any) => x.squad));
+  const remaining = a.pool.slice(a.cursor).filter((x: number) => !ownedIds.has(x)).length;
+  const stillUnsold = new Set(a.unsold || []);
   const visible = rows.filter((r) =>
     filter === "all" ? true : filter === "mine" ? r.seat === seat : filter === "sold" ? r.status !== "unsold" : r.status === filter,
   );
@@ -266,7 +343,7 @@ export function Ledger({ game, seat }: { game: any; seat: number }) {
             <tr>
               <th>LOT</th>
               <th>PLAYER</th>
-              <th>SET</th>
+              <th>TAG</th>
               <th className="hide-sm">ROLE</th>
               <th className="hide-sm num">BASE</th>
               <th>STATUS</th>
@@ -277,7 +354,7 @@ export function Ledger({ game, seat }: { game: any; seat: number }) {
           <tbody>
             {(filter === "all" || filter === "sold") && (
               <tr className="row-live">
-                <td>{String(a.cursor).padStart(3, "0")}</td>
+                <td>{String(a.lots ?? a.cursor).padStart(3, "0")}</td>
                 <td>
                   <span className="ar-ledger-player">
                     <Face id={live.id} />
@@ -323,7 +400,7 @@ export function Ledger({ game, seat }: { game: any; seat: number }) {
                   <td className="hide-sm">{p.role}</td>
                   <td className="hide-sm num">{money(price(p, game.settings))}</td>
                   <td>
-                    <span className={`ar-status st-${r.status}`}>{r.status === "auto" ? "AUTO-FILL" : r.status.toUpperCase()}</span>
+                    <span className={`ar-status st-${r.status}`}>{r.status === "auto" ? "AUTO-FILL" : r.direct ? "SIGNED" : r.status.toUpperCase()}</span>
                   </td>
                   <td>
                     {r.seat !== null && r.seat !== undefined ? (
@@ -334,7 +411,17 @@ export function Ledger({ game, seat }: { game: any; seat: number }) {
                       <span className="muted">—</span>
                     )}
                   </td>
-                  <td className="num">{r.amount ? money(r.amount) : <span className="muted">—</span>}</td>
+                  <td className="num">
+                    {r.status === "unsold" && stillUnsold.has(r.id) && onBuy && price(p, game.settings) <= game.seats[seat].bank ? (
+                      <button className="ar-buy-now" onClick={() => onBuy(r.id)}>
+                        Sign {money(price(p, game.settings))}
+                      </button>
+                    ) : r.amount ? (
+                      money(r.amount)
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                  </td>
                 </tr>
               );
             })}
@@ -349,6 +436,114 @@ export function Ledger({ game, seat }: { game: any; seat: number }) {
         </table>
       </div>
     </section>
+  );
+}
+
+function ScoutModal({ game, seat, busy, onAction, onClose }: { game: any; seat: number; busy: boolean; onAction: (t: string, x?: any) => void; onClose: () => void }) {
+  const [q, setQ] = useState("");
+  const [tier, setTier] = useState("all");
+  const [role, setRole] = useState("all");
+  const [reach, setReach] = useState(true);
+  const my = game.seats[seat];
+  const callsLeft = scoutLimit(game.settings) - (my.scouts || 0);
+  const full = my.squad.length >= game.settings.squadSize;
+  const rows = useMemo(() => {
+    const text = q.trim().toLowerCase();
+    return scoutList(game)
+      .map((r: any) => ({ ...r, p: player(r.id), cost: price(player(r.id), game.settings) }))
+      .filter(
+        (r: any) =>
+          (!text || r.p.name.toLowerCase().includes(text) || r.p.country.toLowerCase().includes(text)) &&
+          (tier === "all" || (tier === "unsold" ? r.status === "unsold" : r.p.tier === tier)) &&
+          (role === "all" || r.p.role === role) &&
+          (!reach || r.cost <= my.bank),
+      )
+      .sort((x: any, y: any) => (x.status === y.status ? y.p.rating - x.p.rating : x.status === "unsold" ? -1 : 1));
+  }, [game, q, tier, role, reach]);
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
+  }, []);
+  return (
+    <div className="ar-scout-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <section className="ar-scout" role="dialog" aria-modal="true" aria-label="Find a player">
+        <header>
+          <div>
+            <h3>Find a player</h3>
+            <p>
+              Sign <b>unsold</b> players straight away at base price, or <b>call up</b> anyone still waiting so they are auctioned next.
+            </p>
+          </div>
+          <div className="ar-scout-wallet">
+            <span>
+              PURSE <b>{money(my.bank)}</b>
+            </span>
+            <span>
+              CALL-UPS <b>{Math.max(0, callsLeft)}</b>
+            </span>
+          </div>
+          <button className="ar-icon" onClick={onClose} aria-label="Close">
+            <X size={16} />
+          </button>
+        </header>
+        <div className="ar-scout-tools">
+          <label className="ar-scout-search">
+            <Search size={15} />
+            <input id="scout-search" autoFocus placeholder="Search by name or country" value={q} onChange={(e) => setQ(e.target.value)} />
+          </label>
+          <select aria-label="Filter by tag" value={tier} onChange={(e) => setTier(e.target.value)}>
+            <option value="all">All tags</option>
+            <option value="unsold">Unsold only</option>
+            {TIER_ORDER.map((t: string) => (
+              <option key={t} value={t}>
+                {TIERS[t].tag}
+              </option>
+            ))}
+          </select>
+          <select aria-label="Filter by role" value={role} onChange={(e) => setRole(e.target.value)}>
+            <option value="all">All roles</option>
+            {Object.entries(ROLE).map(([k, v]) => (
+              <option key={k} value={k}>
+                {v}
+              </option>
+            ))}
+          </select>
+          <label className="ar-scout-check">
+            <input id="scout-reach" type="checkbox" checked={reach} onChange={(e) => setReach(e.target.checked)} /> Within my purse
+          </label>
+        </div>
+        <div className="ar-scout-list">
+          {rows.map((r: any) => (
+            <div key={r.id} className={`ar-scout-row ${r.status}`}>
+              <Face id={r.id} />
+              <div className="ar-scout-name">
+                <strong>{r.p.name}</strong>
+                <small>
+                  {ROLE[r.p.role]} · BAT {r.p.bat} · BOWL {r.p.bowl}
+                </small>
+              </div>
+              <TierTag tier={r.p.tier} size="xs" />
+              <b className="ar-scout-price">{money(r.cost)}</b>
+              {r.status === "unsold" ? (
+                <button className="ar-btn ar-btn-primary" disabled={busy || full || r.cost > my.bank} onClick={() => onAction("buyUnsold", { id: r.id })}>
+                  Sign now
+                </button>
+              ) : r.called ? (
+                <span className="ar-scout-called">
+                  <PhoneCall size={12} /> Coming up
+                </span>
+              ) : (
+                <button className="ar-btn ar-btn-ghost" disabled={busy || full || callsLeft <= 0 || r.cost > my.bank} onClick={() => onAction("callUp", { id: r.id })}>
+                  Call up
+                </button>
+              )}
+            </div>
+          ))}
+          {!rows.length && <p className="ar-muted">No players match. Try clearing a filter.</p>}
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -408,11 +603,17 @@ export function AuctionArena({
   const locked = !isTurn || busy || !!popup;
   const advice = squadAdvice(game, seat);
   const thought = game.lastAuctionDecision && game.seats[game.lastAuctionDecision.seat]?.ai ? game.lastAuctionDecision : null;
-  const sets = TIER_ORDER.map((t: string) => {
-    const total = a.pool.filter((x: number) => player(x).tier === t).length;
-    const done = a.pool.slice(0, a.cursor).filter((x: number) => player(x).tier === t).length;
-    return { t, total, done, live: t === p.tier };
-  });
+  const owned = new Set(game.seats.flatMap((x: any) => x.squad));
+  const waiting = a.pool.slice(a.cursor).filter((x: number) => !owned.has(x));
+  const sets = TIER_ORDER.map((t: string) => ({
+    t,
+    left: waiting.filter((x: number) => player(x).tier === t).length + (p.tier === t ? 1 : 0),
+    live: t === p.tier,
+  }));
+  const [scout, setScout] = useState(false);
+  const callsLeft = scoutLimit(game.settings) - (my.scouts || 0);
+  const canScout = my.squad.length < game.settings.squadSize;
+  const unsoldCount = (a.unsold || []).length;
   return (
     <div className="ar-auction">
       <div className="ar-strip">
@@ -444,19 +645,13 @@ export function AuctionArena({
         <div className={`ar-stage tier-${p.tier}`} style={css({ "--tier": tier.color })}>
           <div className="ar-stage-top">
             <span className="ar-live">
-              <i /> LOT {String(a.cursor).padStart(3, "0")} / {a.pool.length}
+              <i /> LOT {String(a.lots ?? a.cursor).padStart(3, "0")} · {waiting.length} TO COME
             </span>
-            <div className="ar-sets" aria-label="Auction order">
-              {sets.map((s: any) => (
-                <span
-                  key={s.t}
-                  className={`ar-set ${s.live ? "is-live" : s.done >= s.total ? "is-done" : ""}`}
-                  style={css({ "--tier": TIERS[s.t].color })}
-                >
-                  {TIERS[s.t].tag}
-                  <small>
-                    {s.live ? `${info.index}/${s.total}` : s.done >= s.total ? <Check size={10} /> : s.total}
-                  </small>
+            <div className="ar-sets" aria-label="Players left in the pool by tag">
+              {sets.map((x: any) => (
+                <span key={x.t} className={`ar-set ${x.live ? "is-live" : x.left ? "" : "is-done"}`} style={css({ "--tier": TIERS[x.t].color })}>
+                  {TIERS[x.t].tag}
+                  <small>{x.left}</small>
                 </span>
               ))}
             </div>
@@ -533,6 +728,17 @@ export function AuctionArena({
               {a.leader === null ? "Pass" : "Drop out"} <X size={15} />
             </button>
           </div>
+          <button className="ar-scout-btn" disabled={!canScout} onClick={() => setScout(true)}>
+            <Search size={15} />
+            <span>
+              Find a player
+              <small>
+                {unsoldCount ? `${unsoldCount} unsold to sign now · ` : ""}
+                {callsLeft} call-up{callsLeft === 1 ? "" : "s"} left
+              </small>
+            </span>
+            <ArrowRight size={15} />
+          </button>
           <div className="ar-panel-scroll">
             {thought && (
               <div className="ar-thought">
@@ -580,6 +786,11 @@ export function AuctionArena({
                 <p className="ar-muted">Your first signing will appear here.</p>
               )}
             </div>
+            {a.withdrawn > 0 && (
+              <p className="ar-muted small">
+                {a.withdrawn} player{a.withdrawn === 1 ? "" : "s"} priced above every remaining purse {a.withdrawn === 1 ? "was" : "were"} withdrawn.
+              </p>
+            )}
             {seat === 0 && (
               <button className="ar-link" onClick={onComplete}>
                 <Zap size={12} /> Quick-complete squads
@@ -589,7 +800,8 @@ export function AuctionArena({
         </aside>
       </div>
 
-      <Ledger game={game} seat={seat} />
+      <Ledger game={game} seat={seat} onBuy={canScout && !busy ? (id: number) => onAction("buyUnsold", { id }) : undefined} />
+      {scout && <ScoutModal game={game} seat={seat} busy={busy} onAction={onAction} onClose={() => setScout(false)} />}
     </div>
   );
 }
@@ -677,21 +889,12 @@ function useBoardMotion(positions: number[], length: number, onStep?: () => void
   return { shown, phase, mover, path, left, busy: phase !== "idle" };
 }
 
-function TumbleDice({ values, rolling, size }: { values: number[]; rolling: boolean; size: number }) {
-  const [faces, setFaces] = useState(values);
-  useEffect(() => {
-    if (!rolling) {
-      setFaces(values);
-      return;
-    }
-    const t = setInterval(() => setFaces([1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)]), 85);
-    return () => clearInterval(t);
-  }, [rolling, values.join(",")]);
+function TumbleDice({ values, rolling }: { values: number[]; rolling: boolean; size?: number }) {
   return (
     <div className={`ar-tray-dice ${rolling ? "is-rolling" : "is-landed"}`}>
-      {faces.map((v, i) => (
-        <div key={i} className="ar-tray-die" style={css({ "--d": `${i * 0.08}s` })}>
-          <ArDie value={v} size={size} />
+      {values.map((v, i) => (
+        <div key={i} className="ar-tray-die" style={css({ "--d": `${i * 0.09}s` })}>
+          <ArDie value={v} rolling={rolling} size={0} nonce={values.join("")} />
         </div>
       ))}
     </div>
@@ -916,7 +1119,7 @@ export function BoardArena({
                     <span className="gold">×2</span> Free hit / super over
                   </div>
                   <div>
-                    <span className="bad">W</span> Bowled / caught / run out −6
+                    <span className="bad">W</span> 7 wicket squares · −6 runs · {MONOPOLY_WICKETS} wickets and you are all out
                   </div>
                 </>
               )}
@@ -1085,8 +1288,8 @@ export function ArenaScore({ game }: { game: any }) {
           <strong>{batTeam.short}</strong>
           <small>{bat.name}</small>
         </div>
-        <b key={`${m.scores[m.batting]}-${m.wickets}`}>
-          {m.scores[m.batting]}
+        <b key={`${m.innings}-${m.wickets}`} className={`ar-score-big`}>
+          <Count value={m.scores[m.batting]} />
           <small>/{m.wickets}</small>
         </b>
         <div className="ar-score-overs">
@@ -1162,16 +1365,48 @@ export function MatchArena({
     my = game.seats[seat];
   const batting = m.batting === seat;
   const last = m.last;
-  // hold the "last ball" read-out until the replay reaches the moment of impact
+  // Hold the read-out and the scoreboard until the replay reaches the moment of the result.
   const [reveal, setReveal] = useState(true);
   const lastId = useRef(last?.id);
+  const prevGame = useRef<any>(game);
+  const [held, setHeld] = useState<any>(null);
   useEffect(() => {
-    if (!last || last.id === lastId.current) return;
+    if (!last || last.id === lastId.current) {
+      prevGame.current = game;
+      return;
+    }
     lastId.current = last.id;
     setReveal(false);
-    const t = setTimeout(() => setReveal(true), 1500);
+    setHeld(prevGame.current);
+    const t = setTimeout(() => {
+      setReveal(true);
+      setHeld(null);
+      prevGame.current = game;
+    }, revealMs(last));
+    return () => {
+      clearTimeout(t);
+      setHeld(null);
+      setReveal(true);
+      prevGame.current = game;
+    };
+  }, [game]);
+  const over = game.phase !== "match";
+  // once the result has had its moment, an opponent's early roll may start the next ball's display
+  const [settled, setSettled] = useState(true);
+  useEffect(() => {
+    if (!reveal) {
+      setSettled(false);
+      return;
+    }
+    const t = setTimeout(() => setSettled(true), 1500);
     return () => clearTimeout(t);
-  }, [last?.id]);
+  }, [reveal, last?.id]);
+  const fresh = !over && reveal && (m.submitted[seat] || (settled && m.submitted.some(Boolean))); // a new ball is being rolled
+  const showLast = !!last && reveal && !fresh;
+  const history = useMemo(
+    () => (held || game).match.history.filter((b: any) => b.innings === m.innings && !b.out && b.runs > 0 && b.id !== (reveal ? -1 : last?.id)),
+    [game, held, reveal],
+  );
   return (
     <div className="ar-match">
       <div className="ar-match-main">
@@ -1182,6 +1417,7 @@ export function MatchArena({
             bowlColor={teamColor(game, m.bowling)}
             batShort={TEAMS[game.seats[m.batting].team].short}
             bowlShort={TEAMS[game.seats[m.bowling].team].short}
+            wagon={history}
           />
           {m.innings === 1 && m.balls === 0 && (
             <div className="ar-break">
@@ -1202,58 +1438,102 @@ export function MatchArena({
               Tier bonuses <HelpCircle size={11} />
             </button>
           </div>
-          <div className="ar-duel-cards">
+          <div className={`ar-duel-cards ${showLast ? (last.out ? "res-out" : last.runs >= 4 ? "res-boundary" : "res-runs") : ""}`}>
             {[m.batting, m.bowling].map((idx: number, k: number) => {
-              const p = player(game.seats[idx].squad[k === 0 ? m.batter : m.bowler]);
+              // while the last ball is on show, keep the two players who contested it on the cards
+              const shownId = showLast || (!reveal && last) ? (k === 0 ? last.batter : last.bowler) : game.seats[idx].squad[k === 0 ? m.batter : m.bowler];
+              const seatIdx = showLast || (!reveal && last) ? (k === 0 ? last.batting : 1 - last.batting) : idx;
+              const p = player(shownId);
               const t = k === 0 ? p.batTier : p.bowlTier;
               const mod = k === 0 ? TIERS[t].bat : TIERS[t].bowl;
-              const mine = idx === seat;
-              const value = (mine ? m.rolls[idx] : null) || (reveal ? last?.[k === 0 ? "batDie" : "bowlDie"] : null) || null;
+              const mine = seatIdx === seat;
+              const lastDie = last?.[k === 0 ? "batDie" : "bowlDie"];
+              const value = fresh ? (mine ? m.rolls[seatIdx] : null) : !reveal && last ? (mine ? lastDie : null) : showLast ? lastDie : null;
+              const spinning = (rolling && mine) || (!reveal && !!last && !mine) || (fresh && !mine && m.submitted[seatIdx]);
+              const total = showLast ? (k === 0 ? last.batTotal : last.bowlTotal) : null;
+              const won = showLast && (k === 0 ? !last.out && last.runs > 0 : last.out);
               return (
-                <div key={`${idx}-${p.id}`} className={`ar-duel-card ${k === 0 ? "is-bat" : "is-bowl"} ${mine ? "is-mine" : ""}`} style={css({ "--team": teamColor(game, idx), "--tier": TIERS[t].color })}>
+                <div
+                  key={k}
+                  className={`ar-duel-card ${k === 0 ? "is-bat" : "is-bowl"} ${mine ? "is-mine" : ""} ${won ? "is-winner" : showLast ? "is-settled" : ""}`}
+                  style={css({ "--team": teamColor(game, seatIdx), "--tier": TIERS[t].color })}
+                >
                   <span className="ar-duel-role">
                     {k === 0 ? "🏏 BATTING" : "● BOWLING"}
                     {mine ? " · YOU" : ""}
                   </span>
-                  <div className="ar-duel-photo">
+                  <div className="ar-duel-photo" key={p.id}>
                     <img src={p.photo} alt="" />
-                    <span className="ar-duel-mod">
-                      {mod >= 0 ? "+" : "−"}
-                      {Math.abs(mod)}
-                    </span>
                   </div>
                   <strong>{p.name}</strong>
                   <small>
                     {TIERS[t].name} {k === 0 ? "bat" : "ball"}
                   </small>
-                  <div className="ar-duel-die">
-                    <ArDie value={value} rolling={rolling && mine} size={40} />
-                    {m.submitted[idx] ? (
-                      <span className="ar-locked">
-                        <Check size={11} /> LOCKED
-                      </span>
-                    ) : (
-                      <span className="ar-waiting">{mine ? "your roll" : "to roll"}</span>
-                    )}
+                  <div className="ar-duel-sum">
+                    <ArDie value={value} rolling={spinning} size={38} nonce={`${last?.id}-${fresh}`} />
+                    <span className="ar-duel-mod" title="Tier bonus">
+                      {fmtMod(mod)}
+                    </span>
+                    <span className="ar-duel-eq">=</span>
+                    <b className={`ar-duel-total ${total === null ? "is-pending" : ""}`} key={total === null ? "p" : `t${last.id}`}>
+                      {total === null ? "?" : <Count value={total} ms={350} />}
+                    </b>
                   </div>
+                  <span className={m.submitted[seatIdx] && fresh ? "ar-locked" : "ar-waiting"}>
+                    {fresh ? (
+                      m.submitted[seatIdx] ? (
+                        <>
+                          <Check size={11} /> LOCKED IN
+                        </>
+                      ) : mine ? (
+                        "your roll"
+                      ) : (
+                        "to roll"
+                      )
+                    ) : !reveal && last ? (
+                      "ball in play…"
+                    ) : showLast ? (
+                      won ? (
+                        "wins the ball"
+                      ) : (
+                        " "
+                      )
+                    ) : mine ? (
+                      "your roll"
+                    ) : (
+                      "to roll"
+                    )}
+                  </span>
                 </div>
               );
             })}
-            <span className="ar-vs">VS</span>
+            <span className={`ar-vs ${showLast ? "is-result" : ""}`} key={showLast ? `r${last.id}` : "vs"}>
+              {showLast ? (last.out ? "OUT" : last.runs === 0 ? "DOT" : `+${last.runs}`) : "VS"}
+            </span>
           </div>
-          {last && reveal && (
+          {showLast && (
             <div className={`ar-equation ${last.out ? "is-out" : last.runs >= 4 ? "is-boundary" : ""}`} key={last.id}>
               <span>LAST BALL</span>
               <strong>
-                {last.batTotal} <i>{last.out ? "<" : last.batTotal === last.bowlTotal ? "=" : ">"}</i> {last.bowlTotal}
+                {last.batTotal} <i>{last.out && last.batTotal >= last.bowlTotal ? "✕" : last.out ? "<" : last.batTotal === last.bowlTotal ? "=" : ">"}</i> {last.bowlTotal}
               </strong>
-              <b>{last.out ? `OUT · ${last.shot}` : last.runs === 0 ? "DOT" : `${last.runs} RUN${last.runs === 1 ? "" : "S"}`}</b>
+              <b>
+                {last.natural === "jaffa"
+                  ? "UNPLAYABLE · 1 v " + last.bowlDie
+                  : last.natural === "loose"
+                    ? "LOOSE BALL · NO WICKET"
+                    : last.out
+                      ? `OUT · ${last.shot}`
+                      : last.runs === 0
+                        ? "DOT"
+                        : `${last.runs} RUN${last.runs === 1 ? "" : "S"}`}
+              </b>
             </div>
           )}
           <div className="ar-actions">
             <button
               className={`ar-btn ar-btn-primary ar-btn-wide ar-roll ${batting ? "is-bat" : "is-bowl"}`}
-              disabled={m.submitted[seat] || busy || rolling || my.autoBalls > 0}
+              disabled={over || m.submitted[seat] || busy || rolling || my.autoBalls > 0}
               onClick={() => onAction("roll")}
             >
               <Dices size={19} />
@@ -1338,7 +1618,7 @@ export function MatchArena({
           </div>
         </aside>
       </div>
-      <ArenaScore game={game} />
+      <ArenaScore game={held || game} />
     </div>
   );
 }

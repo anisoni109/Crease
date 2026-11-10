@@ -14,7 +14,10 @@ Choose 1, 2, 5, 10 or 20 overs and squads of 3, 5, 7 or 11. Budgets and prices a
 
 - **Screen-locked game views.** Auction, board, toss and match screens now fit inside the browser window (no page scrolling). On phones the play area scrolls inside itself and the main action buttons stay pinned to the bottom.
 - **New stadium.** Floodlit ground with crowd, boundary boards, proper cricketers (batters with pads and helmets, keeper, umpire) and a full replay for every ball: bowler run-up, delivery, shot, fielder chase, running between wickets, stumps flying, catches, run-outs, umpire signals, boundary rope flash and fireworks for sixes.
-- **Auction sets and tags.** Players come up in order: Gold **MARQUEE** set, then Red **ELITE**, Blue **CORE** and Gray **ROOKIE**. Tags are shown everywhere players appear.
+- **Auction tags.** Gold is **MARQUEE**, Red **ELITE**, Blue **CORE** and Gray **ROOKIE**. Players come up in random order; lots no captain can afford (while still filling a squad) are withdrawn. **Find a player** signs unsold players at base price or calls a waiting player up next.
+- **Smarter CPU.** It plans the best tier mix it can afford for the roles it still needs and passes on players outside that plan.
+- **Natural rolls.** A batter's 1 against a bowler's 5 or 6 is always out; a bowler's 1 never takes a wicket.
+- **Cricket Monopoly** has seven wicket squares, and ten wickets end a captain's innings.
 - **UNSOLD popup**, an **Up next** card, and an **Auction tracker** table at the bottom with every lot's status (on the block / sold / unsold / auto-fill), buyer and price.
 - **Play online from a Claude link.** When the game is opened as a Claude artifact, parties are stored in the artifact's shared database instead of the party server. Your friend needs edit access to the artifact.
 

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
+import { player } from "../lib/game.mjs";
 
 /*
  * The match-day stadium. A broadcast-style view from behind the bowler:
@@ -232,12 +233,15 @@ export function Stadium({
   bowlColor = "#579bff",
   batShort = "BAT",
   bowlShort = "BOWL",
+  wagon = [],
 }: {
   event?: any;
   batColor?: string;
   bowlColor?: string;
   batShort?: string;
   bowlShort?: string;
+  /** earlier scoring shots of this innings, drawn as a faint wagon wheel */
+  wagon?: any[];
 }) {
   const p = useMemo(() => plan(event), [event?.id]);
   const svg = useRef<SVGSVGElement | null>(null);
@@ -246,6 +250,18 @@ export function Stadium({
       svg.current?.setCurrentTime?.(0);
     } catch {}
   }, [event?.id]);
+  const wheel = useMemo(
+    () =>
+      wagon.slice(0, 24).map((b: any) => {
+        const a = parseTarget(b),
+          end = onEllipse(a, b.runs === 6 ? 1.06 : b.runs === 4 ? 1 : [0, 0.52, 0.68, 0.84][b.runs] || 0.6);
+        return { id: b.id, runs: b.runs, x: r1(end.x), y: r1(end.y) };
+      }),
+    [wagon.map((b: any) => b.id).join(",")],
+  );
+  const bowlerInfo = event ? player(event.bowler) : null,
+    batterInfo = event ? player(event.batter) : null;
+  const pace = event && bowlerInfo ? (118 + (bowlerInfo.bowl - 60) * 0.55 + ((event.id * 37) % 90) / 10).toFixed(1) : "";
   const kind = p?.kind || "idle";
   const runs = p?.runs || 0;
   const runCycles = kind === "runs" ? runs : kind === "runout" ? 1 : 0;
@@ -372,11 +388,29 @@ export function Stadium({
             </g>
           ))}
 
+          {/* wagon wheel of earlier scoring shots */}
+          <g className="st-wagon">
+            {wheel.map((w) => (
+              <line key={w.id} x1={CONTACT.x} y1={CONTACT.y} x2={w.x} y2={w.y} className={`w${w.runs}`} />
+            ))}
+          </g>
+          {p && (
+            <ellipse cx="401" cy="263" rx="2" ry="1" fill="#e9dcb4" opacity="0">
+              <animate attributeName="opacity" values="0;.8;0" begin="1.13s" dur="0.5s" />
+              <animate attributeName="rx" values="2;11" begin="1.13s" dur="0.5s" fill="freeze" />
+              <animate attributeName="ry" values="1;4.5" begin="1.13s" dur="0.5s" fill="freeze" />
+            </ellipse>
+          )}
+
           {/* far-side fielders and keeper (drawn before the striker) */}
           {FIELD.map((f, i) =>
             f.y < 200 ? (
               <Place key={i} x={f.x} y={f.y} className={`st-fielder ${p?.chase?.index === i ? "st-chaser" : ""}`}>
-                <g className="st-move" style={p?.chase?.index === i ? ({ "--dx": `${p.chase.dx}px`, "--dy": `${p.chase.dy}px` } as any) : undefined}>
+                <g className="st-move" style={
+                    p?.chase?.index === i
+                      ? ({ "--dx": `${p.chase.dx}px`, "--dy": `${p.chase.dy}px` } as any)
+                      : ({ "--wx": `${r1(((400 - f.x) / Math.hypot(400 - f.x, 280 - f.y)) * 9)}px`, "--wy": `${r1(((280 - f.y) / Math.hypot(400 - f.x, 280 - f.y)) * 9)}px` } as any)
+                  }>
                   <Cricketer kind="fielder" kit={bowlColor} />
                 </g>
               </Place>
@@ -419,6 +453,25 @@ export function Stadium({
                   <path className="st-trail" d={p.air} fill="none" stroke="#fff8d6" strokeWidth="1.4" strokeDasharray="3 6" pathLength={100} />
                 </>
               )}
+              {p.kind !== "dot" && !p.lift && p.kind !== "runout" && event && !event.out && (
+                <g className="st-impact" transform={`translate(${CONTACT.x} ${CONTACT.y})`}>
+                  <path d="M0-9 2-2 9 0 2 2 0 9-2 2-9 0-2-2Z" fill="#fff6c9" opacity="0">
+                    <animate attributeName="opacity" values="0;1;0" begin="1.28s" dur="0.28s" />
+                  </path>
+                </g>
+              )}
+              {p.kind === "runs" && (
+                <circle r="2.8" fill="#f7f2e1" stroke="#c8352c" strokeWidth=".8" opacity="0">
+                  <set attributeName="opacity" to="1" begin={`${r1(1.3 + p.shotDur + 0.6)}s`} />
+                  <set attributeName="opacity" to="0" begin={`${r1(1.3 + p.shotDur + 1.15)}s`} />
+                  <animateMotion
+                    path={`M${r1(p.target.x)} ${r1(p.target.y)} Q${r1((p.target.x + 400) / 2)} ${r1((p.target.y + 150) / 2 - 46)} 400 150`}
+                    begin={`${r1(1.3 + p.shotDur + 0.6)}s`}
+                    dur="0.5s"
+                    fill="freeze"
+                  />
+                </circle>
+              )}
               {p.throwPath && (
                 <circle r="2.6" fill="#f7f2e1" stroke="#c8352c" strokeWidth=".8" opacity="0">
                   <set attributeName="opacity" to="1" begin="1.95s" />
@@ -432,7 +485,11 @@ export function Stadium({
           {FIELD.map((f, i) =>
             f.y >= 200 ? (
               <Place key={i} x={f.x} y={f.y} className={`st-fielder ${p?.chase?.index === i ? "st-chaser" : ""}`}>
-                <g className="st-move" style={p?.chase?.index === i ? ({ "--dx": `${p.chase.dx}px`, "--dy": `${p.chase.dy}px` } as any) : undefined}>
+                <g className="st-move" style={
+                    p?.chase?.index === i
+                      ? ({ "--dx": `${p.chase.dx}px`, "--dy": `${p.chase.dy}px` } as any)
+                      : ({ "--wx": `${r1(((400 - f.x) / Math.hypot(400 - f.x, 280 - f.y)) * 9)}px`, "--wy": `${r1(((280 - f.y) / Math.hypot(400 - f.x, 280 - f.y)) * 9)}px` } as any)
+                  }>
                   <Cricketer kind="fielder" kit={bowlColor} number={i + 3} />
                 </g>
               </Place>
@@ -494,8 +551,26 @@ export function Stadium({
                     ? "DOT BALL"
                     : `${runs} RUN${runs === 1 ? "" : "S"}`}
         </strong>
-        <span>{event ? (event.out ? event.shot.toUpperCase() : runs >= 4 ? `${event.shot} · BOUNDARY` : event.shot) : ""}</span>
+        <span>
+          {event
+            ? event.natural === "jaffa"
+              ? `UNPLAYABLE · ${event.shot.toUpperCase()}`
+              : event.natural === "loose"
+                ? "LOOSE BALL · SURVIVES"
+                : event.out
+                  ? event.shot.toUpperCase()
+                  : runs >= 4
+                    ? `${event.shot} · BOUNDARY`
+                    : event.shot
+            : ""}
+        </span>
       </div>
+      {event && bowlerInfo && batterInfo && (
+        <div className="st-chip">
+          <b>{pace} km/h</b>
+          {bowlerInfo.name.split(" ").slice(-1)[0]} to {batterInfo.name.split(" ").slice(-1)[0]}
+        </div>
+      )}
       {!event && (
         <div className="st-idle-note">
           <span className="live-dot" /> Bowler at the top of the mark. Roll to start the over.

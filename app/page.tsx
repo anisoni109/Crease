@@ -56,7 +56,7 @@ import { claudeHosted, claudeRoom } from "../lib/claudeParty";
 import SetupFlow from "../components/SetupFlow";
 import Statistics, { Scorecard } from "../components/Statistics";
 import { makeRecord } from "../lib/records.mjs";
-import { ArenaHead, AuctionArena, BoardArena, TossArena, MatchArena, TierTag } from "../components/Arena";
+import { ArenaHead, AuctionArena, BoardArena, TossArena, MatchArena, TierTag, revealMs } from "../components/Arena";
 type Game = any;
 const MODES = [
   {
@@ -212,7 +212,20 @@ export default function CricketGame() {
     [resume, setResume] = useState<any>(null),
     [rolling, setRolling] = useState(false),
     [popup, setPopup] = useState<any>(null),
-    [boardMoving, setBoardMoving] = useState(false);
+    [boardMoving, setBoardMoving] = useState(false),
+    [finale, setFinale] = useState(false);
+  const prevPhase = useRef<string | null>(null);
+  useEffect(() => {
+    // let the last ball (or last roll) play out before the result screen takes over
+    const was = prevPhase.current;
+    prevPhase.current = game?.phase ?? null;
+    if (game?.phase === "results" && (was === "match" || was === "monopoly")) {
+      setFinale(true);
+      const t = setTimeout(() => setFinale(false), was === "match" ? 4200 : 3600);
+      return () => clearTimeout(t);
+    }
+    if (game?.phase !== "results") setFinale(false);
+  }, [game?.phase]);
   const [profileReady, setProfileReady] = useState(false),
     [identity, setIdentity] = useState<any>(null),
     [localRecords, setLocalRecords] = useState<any[]>([]);
@@ -220,7 +233,8 @@ export default function CricketGame() {
     flight = useRef(false),
     restored = useRef(false),
     toastTimer = useRef<any>(null),
-    lastBallAt = useRef(0);
+    lastBallAt = useRef(0),
+    seenBall = useRef<number | null>(null);
   const announce = (message: string) => {
     setToast(message);
     clearTimeout(toastTimer.current);
@@ -351,8 +365,13 @@ export default function CricketGame() {
     if (!game || party || view !== "game" || popup || boardMoving) return;
     const next = aiAction(game);
     if (!next) return;
+    const ballId = game.match?.last?.id ?? null;
+    if (ballId !== seenBall.current) {
+      seenBall.current = ballId;
+      if (ballId !== null && game.phase === "match") lastBallAt.current = Date.now();
+    }
     // let the ball replay finish before the next ball can be resolved
-    const replay = game.phase === "match" ? Math.max(0, lastBallAt.current + 2900 - Date.now()) : 0;
+    const replay = game.phase === "match" ? Math.max(0, lastBallAt.current + 3300 - Date.now()) : 0;
     const timer = setTimeout(
       () => {
         try {
@@ -450,6 +469,32 @@ export default function CricketGame() {
     document.addEventListener("keydown", close);
     return () => document.removeEventListener("keydown", close);
   }, [modal]);
+  // keyboard: Space / Enter rolls, B bids, P passes
+  const keyAction = useRef<(k: string) => void>(() => {});
+  keyAction.current = (k: string) => {
+    if (!game || view !== "game" || modal || popup || boardMoving) return;
+    const myTurn = game.active === seat;
+    if (game.phase === "auction" && myTurn) {
+      if (k === "b") void action("bid");
+      else if (k === "p") void action("pass");
+    } else if (k === " " || k === "enter") {
+      if (game.phase === "match" && !game.match.submitted[seat] && !(game.seats[seat].autoBalls > 0)) void action("roll");
+      else if ((game.phase === "draft" || game.phase === "monopoly") && myTurn && !game.pending) void action("roll");
+    }
+  };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || (el && /INPUT|TEXTAREA|SELECT|BUTTON/.test(el.tagName))) return;
+      const k = e.key.toLowerCase();
+      if ([" ", "enter", "b", "p"].includes(k)) {
+        if (k === " ") e.preventDefault();
+        keyAction.current(k);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   async function action(type: string, extra: any = {}) {
     if (busy || rolling) return;
     if (type === "roll" || type === "toss") {
@@ -541,7 +586,8 @@ export default function CricketGame() {
       (role === "ALL" || p.role === role) &&
       (tierFilter === "ALL" || p.tier === tierFilter),
   );
-  const locked = view === "game" && !!game && !["lobby", "results"].includes(game.phase);
+  const locked = view === "game" && !!game && (!["lobby", "results"].includes(game.phase) || finale);
+  const shownPhase = game?.phase === "results" && finale ? game.settings.mode === "monopoly" ? "monopoly" : "match" : game?.phase;
   const soundTools = (
     <>
       <button
@@ -784,6 +830,7 @@ export default function CricketGame() {
                 onRules={() => setModal("rules")}
                 onCopy={() => copyParty()}
                 extra={soundTools}
+                tickerDelay={shownPhase === "match" ? revealMs(game.match?.last) : shownPhase === "draft" || shownPhase === "monopoly" ? 1300 : 0}
               />
               <div className="ar-body">
                 {game.phase === "auction" && (
@@ -796,7 +843,7 @@ export default function CricketGame() {
                     onComplete={() => setModal("complete")}
                   />
                 )}
-                {(game.phase === "draft" || game.phase === "monopoly") && (
+                {(shownPhase === "draft" || shownPhase === "monopoly") && (
                   <BoardArena
                     game={game}
                     seat={seat}
@@ -810,7 +857,7 @@ export default function CricketGame() {
                 {game.phase === "toss" && (
                   <TossArena game={game} seat={seat} busy={busy} rolling={rolling} onAction={(t, x) => void action(t, x)} />
                 )}
-                {game.phase === "match" && (
+                {shownPhase === "match" && (
                   <MatchArena
                     game={game}
                     seat={seat}
@@ -1250,7 +1297,7 @@ export default function CricketGame() {
                     <p>
                       {game.settings.mode === "monopoly"
                         ? "Your signings generate runs. Rival signings cost runs. The highest score after everyone’s rolls wins."
-                        : "Batter + tier bonus vs bowler + tier bonus. Lower batting total = wicket. Equal = dot. Higher = the difference in runs."}
+                        : "Batter + tier bonus vs bowler + tier bonus. Lower batting total = wicket. Equal = dot. Higher = the difference in runs. A batter's 1 against a 5 or 6 is always out; a bowler's 1 never takes a wicket."}
                     </p>
                     <button className="text-link" onClick={() => setModal("rules")}>
                       Open the playbook <ArrowUpRight size={13} />
@@ -1407,10 +1454,10 @@ export default function CricketGame() {
                           <h3>{m.title}</h3>
                           <p>
                             {m.id === "auction"
-                              ? "Captains take turns bidding or passing. Each raise is ₹0.2 Cr. Both captains may pass; then the player is unsold. If there is a bid and everyone else passes, the last bidder signs the player. Your bids are limited only by your actual purse. The CPU plans its own reserves, targets higher tiers, and can skip any lot."
+                              ? "Captains take turns bidding or passing. Each raise is ₹0.2 Cr. Both captains may pass; then the player is unsold. If there is a bid and everyone else passes, the last bidder signs the player. Your bids are limited only by your actual purse. Players come up in random order, and only players that some captain can still afford are shown. Use Find a player to sign an unsold player at base price or to call a waiting player up next. The CPU plans a squad it can afford and skips players outside that plan."
                               : m.id === "draft"
                                 ? "Roll two dice to move around the player board. Buy or pass on the player you land on. Fill your squad, then face your rival in dice cricket. After 120 draft rolls, remaining places auto-fill."
-                                : "Roll two dice, buy stars and collect runs. Purchases score 2× price, rounded up. Owned-player landings score 3× price; rivals transfer up to that many runs to the owner. Pass Powerplay for +6. Highest score after all rolls wins."}
+                                : "Roll two dice, buy stars and collect runs. Purchases score 2× price, rounded up. Owned-player landings score 3× price; rivals transfer up to that many runs to the owner. Pass Powerplay for +6. Seven wicket squares cost 6 runs each, and ten wickets end your innings. Highest score after all rolls wins."}
                           </p>
                         </div>
                       </div>
@@ -1420,7 +1467,9 @@ export default function CricketGame() {
                 <h3 className="rules-subheading">The dice cricket duel</h3>
                 <p>
                   Each innings lasts your selected overs × 6 balls, or until every squad member is out. Choose a batter
-                  or bowler before rolling. Each captain rolls one die, then the skill tier adds a bonus.
+                  or bowler before rolling. Each captain rolls one die, then the skill tier adds a bonus. Two natural
+                  rolls override the totals: a batter's 1 against a bowler's 5 or 6 is always out, and a bowler's 1 can
+                  never take a wicket.
                 </p>
                 <table className="tier-table">
                   <thead>

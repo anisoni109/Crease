@@ -10,3 +10,4 @@ export function createGame(settings:any,seat:any):any;export function start(g:an
 export function act(state:any,actor:number,action:any,rng?:()=>number):any;
 export function aiAction(g:any):any;export function bidAmount(g:any):number;export function publicGame(g:any,actor:number):any;
 export const TIER_ORDER:string[];export function auctionPool(rng?:()=>number):number[];export function upcomingLots(g:any,n?:number):number[];
+export const MONOPOLY_WICKETS:number;export function scoutLimit(s:any):number;export function scoutList(g:any):{id:number,status:string,called:boolean}[];export function draftDecision(g:any,i:number):any;

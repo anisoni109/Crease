@@ -21,10 +21,10 @@ test('dismissed batters and locked dice cannot be changed',()=>{let g=start(setu
 test('public state strips secrets and conceals an opponent die',()=>{let g=start(setup(),rng());g=complete(g);g=act(g,1,{type:'roll'},()=>.9);const p=publicGame(g,0);assert.ok(p.seats.every(s=>!('token'in s)));assert.equal(p.match.rolls[1],null);assert.equal(p.match.submitted[1],true);assert.equal(g.match.rolls[1],6)});
 test('seeded full matches finish and highest runs win, across all three modes',()=>{for(const mode of ['auction','draft','monopoly'])for(let seed=1;seed<=15;seed++){const r=rng(seed);let g=setup(mode);g.seats.forEach(s=>s.ai=true);g=start(g,r);let steps=0;while(g.phase!=='results'&&steps++<1500){const next=aiAction(g);assert.ok(next,`AI stalled in ${g.phase}`);g=act(g,next.actor,next.action,r);assert.ok(g.seats.every(s=>s.bank>=0&&s.score>=0));}assert.equal(g.phase,'results',`${mode} seed ${seed} stalled`);const scores=mode==='monopoly'?g.seats.map(s=>s.score):g.match.scores;if(g.winner>=0)assert.equal(scores[g.winner],Math.max(...scores));}});
 test('four-captain monopoly ends only when every captain has used all rolls',()=>{let g=setup('monopoly',{capacity:4});g.seats.push(makeSeat('Third',2,'c',true),makeSeat('Fourth',3,'d',true));g.seats.forEach(s=>s.ai=true);const r=rng(9);g=start(g,r);for(let n=0;n<400&&g.phase!=='results';n++){const next=aiAction(g);g=act(g,next.actor,next.action,r)}assert.equal(g.phase,'results');assert.ok(g.seats.every(s=>s.balls===6))});
-test('every franchise combination produces a complete Monopoly board',()=>{for(let a=0;a<10;a++)for(let b=a;b<10;b++){const g=setup('monopoly');g.seats[0].team=a;g.seats[1].team=b;start(g,rng());assert.equal(g.board.length,32);const ids=g.board.filter(t=>t.kind==='player').map(t=>t.id);assert.equal(ids.length,24);assert.equal(new Set(ids).size,24);assert.ok(ids.every(id=>player(id)))}});
+test('every franchise combination produces a complete Monopoly board',()=>{for(let a=0;a<10;a++)for(let b=a;b<10;b++){const g=setup('monopoly');g.seats[0].team=a;g.seats[1].team=b;start(g,rng());assert.equal(g.board.length,32);const ids=g.board.filter(t=>t.kind==='player').map(t=>t.id);assert.equal(ids.length,20);assert.equal(new Set(ids).size,20);assert.ok(ids.every(id=>player(id)))}});
 test('a selected last-slot batter is replaced by an available teammate when out',()=>{let g=start(setup(),rng());g=complete(g);g.seats[0].squad[2]=PLAYERS.find(p=>p.batTier==='gray').id;g.seats[1].squad[0]=PLAYERS.find(p=>p.bowlTier==='gold').id;g.match.bowler=0;g=act(g,0,{type:'select',index:2});g=act(g,0,{type:'roll'},()=>0);g=act(g,1,{type:'roll'},()=>.999);assert.ok(g.match.dismissed.includes(2));assert.notEqual(g.match.batter,2);assert.ok(!g.match.dismissed.includes(g.match.batter))});
 
-test('every resolved ball counts once and shot directions vary',()=>{const r=rng(110);let g=start(setup('auction',{overs:2,squadSize:11}),r);g=complete(g);const paths=[];for(let n=0;n<8;n++){const before=g.match.history.length;g=act(g,0,{type:'roll'},r);assert.equal(g.match.history.length,before);g=act(g,1,{type:'roll'},r);assert.equal(g.match.history.length,before+1);assert.equal(g.match.balls,n+1);assert.equal(g.match.last.runs,scoreRuns(g.match.last.batTotal,g.match.last.bowlTotal));paths.push(g.match.last.shotPath)}assert.ok(new Set(paths).size>3)});
+test('every resolved ball counts once and shot directions vary',()=>{const r=rng(110);let g=start(setup('auction',{overs:2,squadSize:11}),r);g=complete(g);const paths=[];for(let n=0;n<8;n++){const before=g.match.history.length;g=act(g,0,{type:'roll'},r);assert.equal(g.match.history.length,before);g=act(g,1,{type:'roll'},r);assert.equal(g.match.history.length,before+1);assert.equal(g.match.balls,n+1);if(!g.match.last.natural)assert.equal(g.match.last.runs,g.match.last.out?0:scoreRuns(g.match.last.batTotal,g.match.last.bowlTotal));paths.push(g.match.last.shotPath)}assert.ok(new Set(paths).size>3)});
 test('each lobby captain can change their own name and avatar',()=>{let g=setup();g=act(g,1,{type:'identity',name:'Guest Captain',avatar:6});assert.equal(g.seats[1].name,'Guest Captain');assert.equal(g.seats[1].avatar,6);assert.equal(g.seats[0].name,'First');assert.throws(()=>act(g,1,{type:'identity',name:'',avatar:0}),/name/);g=start(g,rng());assert.throws(()=>act(g,1,{type:'identity',name:'Later',avatar:0}),/locked/)});
 
 test('only the host may adjust overs and squad size in the lobby',()=>{let g=setup();assert.throws(()=>act(g,1,{type:'settings',overs:5,squadSize:7}),/host/);g=act(g,0,{type:'settings',overs:5,squadSize:7});assert.equal(g.settings.overs,5);assert.equal(g.settings.squadSize,7);g=start(g,rng());assert.throws(()=>act(g,0,{type:'settings',overs:1,squadSize:3}),/host/)});
@@ -52,20 +52,17 @@ test('cheap pool supports complete squads at the minimum purse',()=>{assert.ok(P
 test('records total boundaries and bowling correctly, with complete scorecards',()=>{let g=complete(start(setup(),rng()));g.seats.forEach(s=>s.ai=true);const r=rng(167);for(let n=0;n<60&&g.phase!=='results';n++){const next=aiAction(g);g=act(g,next.actor,next.action,r)}assert.equal(g.phase,'results');const record=makeRecord(g,'party:1',1234);assert.ok(record.game.seats.every(s=>!s.token));for(let i=0;i<2;i++){const card=scorecard(g,i),fig=record.seats[i];assert.equal(card.batting.reduce((n,p)=>n+p.runs,0),g.match.scores[i]);assert.equal(card.batting.reduce((n,p)=>n+p.fours,0),fig.fours);assert.equal(card.bowling.reduce((n,p)=>n+p.wickets,0),fig.wickets)}const stats=aggregateRecords([record,makeRecord(g,'party:2')]);assert.ok(stats.every(s=>s.played===2));assert.equal(stats.reduce((n,s)=>n+s.runs,0),2*g.match.scores.reduce((a,b)=>a+b,0))});
 test('rematches preserve squads, reset cricket and increment the saved round',()=>{let g=complete(start(setup(),rng()));g.phase='results';g.winner=0;const squads=g.seats.map(s=>[...s.squad]);assert.throws(()=>act(g,1,{type:'rematch'}),/host/);g=act(g,1,{type:'requestRematch'});assert.ok(g.seats[1].rematchRequested);g=act(g,0,{type:'rematch'});assert.equal(g.phase,'toss');assert.equal(g.round,2);assert.equal(g.match,null);assert.equal(g.winner,null);assert.deepEqual(g.seats.map(s=>s.squad),squads);assert.ok(g.seats.every(s=>!s.rematchRequested&&s.autoBalls===0))});
 
-test('auction runs Gold, then Red, Blue and Gray sets, and logs every lot', async () => {
-  const { TIER_ORDER, upcomingLots } = await import('../lib/game.mjs');
-  let g = start(setup('auction', { squadSize: 3 }), rng(4));
-  const tiers = g.auction.pool.map((id) => player(id).tier);
-  const firstIndex = TIER_ORDER.map((t) => tiers.indexOf(t));
-  const lastIndex = TIER_ORDER.map((t) => tiers.lastIndexOf(t));
-  for (let i = 1; i < TIER_ORDER.length; i++) assert.ok(lastIndex[i - 1] < firstIndex[i], `${TIER_ORDER[i - 1]} must finish before ${TIER_ORDER[i]}`);
-  assert.equal(player(g.auction.id).tier, 'gold');
-  assert.deepEqual(upcomingLots(g, 1), [g.auction.pool[1]]);
-  const first = g.auction.id;
-  g = act(g, 0, { type: 'pass' });
-  g = act(g, 1, { type: 'pass' });
+test('auction order is random, logs every lot and alternates the opening bid', async () => {
+  const a = start(setup('auction', { squadSize: 3 }), rng(4)), b = start(setup('auction', { squadSize: 3 }), rng(5));
+  assert.notDeepEqual(a.auction.pool, b.auction.pool);
+  assert.ok(new Set(a.auction.pool.slice(0, 40).map((id) => player(id).tier)).size >= 3, 'tiers are mixed');
+  let g = a;
+  const first = g.auction.id, opener = g.active;
+  g = act(g, g.active, { type: 'pass' });
+  g = act(g, g.active, { type: 'pass' });
   assert.equal(g.lastUnsold.player, first);
   assert.deepEqual(g.auction.results[0], { lot: 1, id: first, status: 'unsold', seat: null, amount: 0 });
+  assert.notEqual(g.active, opener);
   const second = g.auction.id;
   g = act(g, g.active, { type: 'bid' });
   g = act(g, g.active, { type: 'pass' });
@@ -73,4 +70,70 @@ test('auction runs Gold, then Red, Blue and Gray sets, and logs every lot', asyn
   assert.equal(g.auction.results[1].id, second);
   g = act(g, 0, { type: 'complete' });
   assert.ok(g.auction.results.filter((r) => r.status === 'auto').length >= 4);
+});
+test('captains can call a player up to the block and sign unsold players directly', async () => {
+  const { scoutList, scoutLimit, upcomingLots } = await import('../lib/game.mjs');
+  let g = start(setup('auction', { squadSize: 5 }), rng(8));
+  const target = g.auction.pool[g.auction.pool.length - 1];
+  g = act(g, 1, { type: 'callUp', id: target });
+  assert.equal(upcomingLots(g, 1)[0], target);
+  assert.throws(() => act(g, 1, { type: 'callUp', id: target }), /already on the way/);
+  for (let n = 1; n < scoutLimit(g.settings); n++) g = act(g, 1, { type: 'callUp', id: g.auction.pool[g.auction.pool.length - 1] });
+  assert.throws(() => act(g, 1, { type: 'callUp', id: g.auction.pool[g.auction.pool.length - 1] }), /used all/);
+  const gone = g.auction.id, bank = g.seats[0].bank;
+  g = act(g, g.active, { type: 'pass' });
+  g = act(g, g.active, { type: 'pass' });
+  assert.ok(scoutList(g).some((r) => r.id === gone && r.status === 'unsold'));
+  assert.throws(() => act(g, 0, { type: 'buyUnsold', id: g.auction.id }), /no longer available/);
+  g = act(g, 0, { type: 'buyUnsold', id: gone });
+  assert.ok(g.seats[0].squad.includes(gone));
+  assert.equal(g.seats[0].bank, Math.round((bank - price(player(gone), g.settings)) * 10) / 10);
+  assert.equal(g.auction.results.at(-1).direct, true);
+});
+test('lots nobody can afford are withdrawn, and an overspent captain still gets a full squad', () => {
+  let g = start(setup('auction', { squadSize: 3 }), rng(12));
+  g.seats.forEach((s) => (s.bank = 1.5));
+  g = act(g, g.active, { type: 'pass' });
+  g = act(g, g.active, { type: 'pass' });
+  for (let n = 0; n < 30 && g.phase === 'auction'; n++) {
+    assert.ok(g.seats.some((s) => price(player(g.auction.id), g.settings) <= s.bank), 'every lot shown is affordable');
+    g = act(g, g.active, { type: 'pass' });
+  }
+  assert.ok(g.auction.withdrawn > 0);
+  g.seats[0].bank = 0;
+  g = act(g, 0, { type: 'complete' });
+  assert.ok(g.seats.every((s) => s.squad.length === 3 && s.bank >= 0));
+});
+test('CPU builds a balanced squad within its purse instead of buying every lot', () => {
+  for (const squadSize of [5, 11]) for (const seed of [3, 9]) {
+    const r = rng(seed);
+    let g = setup('auction', { squadSize, overs: 5 });
+    g.seats.forEach((s) => (s.ai = true));
+    g = start(g, r);
+    let bought = 0, lots = 0;
+    for (let n = 0; n < 2500 && g.phase === 'auction'; n++) { const next = aiAction(g); g = act(g, next.actor, next.action, r); }
+    assert.equal(g.phase, 'toss');
+    lots = g.auction.results.length; bought = g.auction.results.filter((x) => x.status === 'sold').length;
+    assert.ok(g.auction.results.some((x) => x.status === 'unsold'), 'the CPU lets players go');
+    for (let i = 0; i < 2; i++) { const advice = squadAdvice(g, i); assert.ok(squadSize < 11 || advice.batters >= advice.batTarget - 1 && advice.bowlers >= advice.bowlTarget - 1, `seat ${i} balance ${JSON.stringify(advice)}`); assert.ok(g.seats[i].bank >= 0); }
+  }
+});
+test('natural rolls: a 1 against a 5 or 6 is always out, and a bowler rolling 1 never takes a wicket', () => {
+  let g = start(setup(), rng()); g = complete(g);
+  g.seats[0].squad[0] = PLAYERS.find((p) => p.batTier === 'gold').id; g.seats[1].squad[0] = PLAYERS.find((p) => p.bowlTier === 'gray').id; g.match.bowler = 0; g.match.batter = 0;
+  g = act(g, 0, { type: 'roll' }, () => 0); g = act(g, 1, { type: 'roll' }, () => 0.7);
+  assert.equal(g.match.last.out, true); assert.equal(g.match.last.natural, 'jaffa');
+  g.seats[0].squad[g.match.batter] = PLAYERS.find((p) => p.batTier === 'gray').id; g.seats[1].squad[0] = PLAYERS.find((p) => p.bowlTier === 'gold').id;
+  g = act(g, 0, { type: 'roll' }, () => 0); g = act(g, 1, { type: 'roll' }, () => 0);
+  assert.equal(g.match.last.out, false); assert.equal(g.match.last.runs, 0); assert.equal(g.match.last.natural, 'loose');
+});
+test('monopoly has seven wicket squares and ten wickets ends a captain\'s innings', async () => {
+  const { MONOPOLY_WICKETS } = await import('../lib/game.mjs');
+  let g = start(setup('monopoly', { overs: 5 }), rng());
+  assert.equal(g.board.filter((t) => t.kind === 'out').length, 7);
+  g.seats[0].wickets = MONOPOLY_WICKETS - 1; g.board[2] = { kind: 'out', label: 'BOWLED' };
+  g = act(g, 0, { type: 'roll' }, () => 0);
+  assert.equal(g.seats[0].wickets, MONOPOLY_WICKETS);
+  for (let n = 0; n < 80 && g.phase !== 'results'; n++) { assert.equal(g.active, 1); g = act(g, 1, { type: g.pending ? 'pass' : 'roll' }, rng(n)); }
+  assert.equal(g.phase, 'results');
 });
