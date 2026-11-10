@@ -4482,3 +4482,13 @@
     display: none;
   }
 }
+
+.st-chip em {
+  font-style: normal;
+  margin-left: 6px;
+  padding-left: 7px;
+  border-left: 1px solid #ffffff33;
+  color: #c9f66b;
+  font-size: 0.86em;
+  white-space: nowrap;
+}

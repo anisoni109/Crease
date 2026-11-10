@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
-import { player } from "../lib/game.mjs";
+import { delivery, player } from "../lib/game.mjs";
 
 /*
  * The match-day stadium. A broadcast-style view from behind the bowler:
@@ -261,7 +261,9 @@ export function Stadium({
   );
   const bowlerInfo = event ? player(event.bowler) : null,
     batterInfo = event ? player(event.batter) : null;
-  const pace = event && bowlerInfo ? (118 + (bowlerInfo.bowl - 60) * 0.55 + ((event.id * 37) % 90) / 10).toFixed(1) : "";
+  const how = event && bowlerInfo ? delivery(bowlerInfo, event.id) : null;
+  const pace = event ? (event.kph ?? how?.kph ?? "").toString() : "";
+  const style = event?.style || how?.style || "";
   const kind = p?.kind || "idle";
   const runs = p?.runs || 0;
   const runCycles = kind === "runs" ? runs : kind === "runout" ? 1 : 0;
@@ -567,8 +569,9 @@ export function Stadium({
       </div>
       {event && bowlerInfo && batterInfo && (
         <div className="st-chip">
-          <b>{pace} km/h</b>
+          <b>{Number(pace).toFixed(1)} km/h</b>
           {bowlerInfo.name.split(" ").slice(-1)[0]} to {batterInfo.name.split(" ").slice(-1)[0]}
+          {style && <em>{style}</em>}
         </div>
       )}
       {!event && (

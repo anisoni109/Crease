@@ -139,3 +139,32 @@ test('monopoly has seven wicket squares and ten wickets ends a captain\'s inning
   for (let n = 0; n < 80 && g.phase !== 'results'; n++) { assert.equal(g.active, 1); g = act(g, 1, { type: g.pending ? 'pass' : 'roll' }, rng(n)); }
   assert.equal(g.phase, 'results');
 });
+
+test('bowling speeds fit the action and shot names match the side of the ground', async () => {
+  const { delivery, shotFor } = await import('../lib/game.mjs');
+  for (const p of PLAYERS.filter((x) => x.bowl >= 55))
+    for (let i = 0; i < 25; i++) {
+      const d = delivery(p, i);
+      if (d.spin) assert.ok(d.kph >= 74 && d.kph <= 108, `${p.name} spin ${d.kph}`);
+      else assert.ok(d.kph >= 120 && d.kph <= 156, `${p.name} pace ${d.kph}`);
+    }
+  assert.equal(delivery(PLAYERS.find((p) => p.name === 'Ravindra Jadeja'), 4).spin, true);
+  assert.equal(delivery(PLAYERS.find((p) => p.name === 'Jasprit Bumrah'), 4).spin, false);
+  const off = /cover|off drive|square drive|cut|point|off side|reverse sweep|thin edge/i, leg = /on-drive|on drive|pull|hook|(?<!reverse )sweep|flick|glance|pads|fine leg|midwicket/i;
+  for (let s = 0; s < 400; s++) {
+    const angle = (s / 400) * Math.PI * 2;
+    for (const runs of [1, 4, 6]) for (const spin of [false, true]) {
+      const name = shotFor(angle, runs, spin, 0.2) + '|' + shotFor(angle, runs, spin, 0.8);
+      const tx = Math.cos(angle);
+      for (const n of name.split('|')) {
+        if (Math.abs(tx) < 0.2) continue; // straight / behind the wicket
+        if (tx < 0) assert.ok(!leg.test(n), `${n} sent to the off side`);
+        else assert.ok(!off.test(n) || /late cut|thin edge/.test(n) === false, `${n} sent to the leg side`);
+      }
+    }
+  }
+  let g = complete(start(setup(), rng(3))); g.seats.forEach((x) => (x.ai = true));
+  const r = rng(21);
+  for (let n = 0; n < 40 && g.phase !== 'results'; n++) { const a = aiAction(g); g = act(g, a.actor, a.action, r); }
+  assert.ok(g.match.history.every((b) => b.kph > 70 && b.style));
+});
